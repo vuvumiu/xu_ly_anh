@@ -451,30 +451,9 @@ A: Có, 15-25 FPS với camera 720p trên máy tính bình thường.
 **Q: Mở rộng cho nhiều loại quả?**  
 A: Tạo config riêng cho mỗi loại, hoặc dùng KNN với features chung.
 
-## Tài liệu tham khảo
 
-- [OpenCV Documentation](https://docs.opencv.org/)
-- [Computer Vision Algorithms and Applications](http://szeliski.org/Book/)
-- [Digital Image Processing - Gonzalez](https://www.imageprocessingplace.com/)
-
-## Contributing
-
-1. Fork repository
-2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)  
-5. Tạo Pull Request
-
-## License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
-## Contact
-
-- **Developer**: [Tên của bạn]
-- **Email**: your.email@example.com
-- **Project Link**: https://github.com/username/fruit-classification-system
 
 ---
+
 
 **Lưu ý quan trọng**: Hệ thống được thiết kế cho mục đích học tập và nghiên cứu. Để sử dụng trong sản xuất thực tế, cần thêm các biện pháp an toàn, redundancy và testing kỹ lưỡng hơn.
