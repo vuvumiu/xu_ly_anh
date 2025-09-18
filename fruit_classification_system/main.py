@@ -213,9 +213,10 @@ class FruitClassificationSystem:
         a_mean = cv2.mean(lab[:, :, 1], obj_mask)[0]
         b_mean = cv2.mean(lab[:, :, 2], obj_mask)[0]
 
-        # Tính tỷ lệ pixel màu đỏ và xanh
-        ratio_red = self.calculate_color_ratio(hsv, obj_mask, "red")
-        ratio_green = self.calculate_color_ratio(hsv, obj_mask, "green")
+        # Tính tỷ lệ pixel cho các màu được định nghĩa trong config (linh hoạt theo từng loại quả)
+        color_ratios = {}
+        for color_key in self.config.get("hsv_ranges", {}).keys():
+            color_ratios[f"ratio_{color_key}"] = self.calculate_color_ratio(hsv, obj_mask, color_key)
 
         # Phát hiện khuyết tật
         defect_ratio = self.detect_defects(lab[:, :, 0], obj_mask)
@@ -233,8 +234,7 @@ class FruitClassificationSystem:
             "v_mean": v_mean,
             "a_mean": a_mean,
             "b_mean": b_mean,
-            "ratio_red": ratio_red,
-            "ratio_green": ratio_green,
+            **color_ratios,
             "defect_ratio": defect_ratio,
             "bbox": (x, y, w, h)
         }
@@ -301,19 +301,36 @@ class FruitClassificationSystem:
                 size_class = size
                 break
 
-        # Phân loại độ chín
+        # Phân loại độ chín (linh hoạt theo ngưỡng trong config)
         ripeness_class = "Medium"
-        ratio_red = features["ratio_red"]
-        a_mean = features["a_mean"]
+        a_mean = features.get("a_mean", 0.0)
+        green_if = self.config.get("ripeness_logic", {}).get("green_if", {})
+        ripe_if = self.config.get("ripeness_logic", {}).get("ripe_if", {})
 
-        green_conditions = self.config["ripeness_logic"]["green_if"]
-        ripe_conditions = self.config["ripeness_logic"]["ripe_if"]
+        def get_ratio(name: str) -> float:
+            return float(features.get(f"ratio_{name}", 0.0))
 
-        if (ratio_red <= green_conditions.get("ratio_red_max", 1.0) or
-                a_mean <= green_conditions.get("a_star_max", 255)):
+        # Xác định core ratio (ví dụ ratio_red/ratio_yellow/ratio_white/ratio_orange ...)
+        def ratio_condition(branch: dict, kind: str) -> bool:
+            ok = True
+            for key, val in branch.items():
+                if key.startswith("ratio_"):
+                    core = key.replace("_min", "").replace("_max", "")
+                    ratio_name = core.replace("ratio_", "")
+                    ratio_val = get_ratio(ratio_name)
+                    if key.endswith("_min") and ratio_val < float(val):
+                        ok = False
+                    if key.endswith("_max") and ratio_val > float(val):
+                        ok = False
+                elif key == "a_star_min" and a_mean < float(val):
+                    ok = False
+                elif key == "a_star_max" and a_mean > float(val):
+                    ok = False
+            return ok
+
+        if ratio_condition(green_if, "green"):
             ripeness_class = "Green"
-        elif (ratio_red >= ripe_conditions.get("ratio_red_min", 0.0) or
-              a_mean >= ripe_conditions.get("a_star_min", 0.0)):
+        if ratio_condition(ripe_if, "ripe"):
             ripeness_class = "Ripe"
 
         # Phân loại khuyết tật
@@ -321,10 +338,16 @@ class FruitClassificationSystem:
         if features["defect_ratio"] >= self.config["defect"]["area_ratio_tau"]:
             defect_status = "Defective"
 
+        # Nhãn tiếng Việt để hiển thị
+        ripeness_vi = {"Green": "Xanh", "Ripe": "Chín"}.get(ripeness_class, "Trung bình")
+        defect_vi = "Khuyết tật" if defect_status == "Defective" else "Tốt"
+
         return {
             "size": size_class,
             "ripeness": ripeness_class,
-            "defect": defect_status
+            "ripeness_vi": ripeness_vi,
+            "defect": defect_status,
+            "defect_vi": defect_vi,
         }
 
     def calibrate_scale_from_reference(self, bgr):
