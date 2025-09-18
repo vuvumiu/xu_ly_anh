@@ -1,33 +1,93 @@
 {
   "product": "tomato",
   "description": "Cấu hình phân loại cà chua theo kích thước và độ chín",
-
   "size_thresholds_mm": {
-    "S": [0, 55],
-    "M": [55, 65],
-    "L": [65, 75],
-    "XL": [75, 999]
-  },
-
-  "hsv_ranges": {
-    "red": [
-      {"H": [0, 10], "S": [80, 255], "V": [70, 255]},
-      {"H": [160, 180], "S": [80, 255], "V": [70, 255]}
+    "S": [
+      0,
+      55
     ],
-    "green": [
-      {"H": [35, 85], "S": [60, 255], "V": [60, 255]}
+    "M": [
+      55,
+      65
     ],
-    "yellow": [
-      {"H": [15, 35], "S": [50, 255], "V": [50, 255]}
+    "L": [
+      65,
+      75
+    ],
+    "XL": [
+      75,
+      999
     ]
   },
-
+  "hsv_ranges": {
+    "red": [
+      {
+        "H": [
+          0,
+          10
+        ],
+        "S": [
+          80,
+          255
+        ],
+        "V": [
+          70,
+          255
+        ]
+      },
+      {
+        "H": [
+          160,
+          180
+        ],
+        "S": [
+          80,
+          255
+        ],
+        "V": [
+          70,
+          255
+        ]
+      }
+    ],
+    "green": [
+      {
+        "H": [
+          35,
+          85
+        ],
+        "S": [
+          60,
+          255
+        ],
+        "V": [
+          60,
+          255
+        ]
+      }
+    ],
+    "yellow": [
+      {
+        "H": [
+          15,
+          35
+        ],
+        "S": [
+          50,
+          255
+        ],
+        "V": [
+          50,
+          255
+        ]
+      }
+    ]
+  },
   "lab_thresholds": {
     "a_star_ripe_min": 25,
     "a_star_green_max": 10,
     "b_star_yellow_min": 15
   },
-
   "ripeness_logic": {
     "green_if": {
       "ratio_red_max": 0.15,
@@ -44,35 +104,41 @@
       "a_star_max": 20
     }
   },
-
   "defect": {
     "dark_delta_T": 25,
     "area_ratio_tau": 0.06,
     "contrast_threshold": 30
   },
-
   "morphology": {
     "open_kernel": 3,
     "close_kernel": 5,
     "min_area": 200,
     "max_area": 50000
   },
-
   "watershed": {
     "distance_threshold_rel": 0.5,
     "min_distance": 10
   },
-
   "camera": {
     "width": 1280,
     "height": 720,
     "fps": 30
   },
-
   "reference_object": {
     "type": "coin",
     "diameter_mm": 24.0,
     "min_radius_px": 20,
     "max_radius_px": 100
+  },
+  "database": {
+    "engine": "mysql",
+    "host": "127.0.0.1",
+    "port": 3307,
+    "user": "root",
+    "password": "",
+    "database": "fruit_classification",
+    "pool_min": 1,
+    "pool_max": 5,
+    "connect_timeout": 10
   }
 }
