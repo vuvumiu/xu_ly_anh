@@ -8,6 +8,29 @@ import threading
 from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from typing import Optional
+
+# DB helper (tùy chọn): chỉ dùng khi bật lưu DB. Sẽ lazy-import để tránh lỗi che khuất.
+try:
+    from db_helper import (
+        load_config as load_app_config,
+        MySQLConnectionManager,
+        ensure_product_exists,
+        insert_capture,
+        insert_classification,
+        fetch_recent_classifications,
+        fetch_captures_with_counts,
+        fetch_classifications_by_capture,
+    )
+except Exception:
+    load_app_config = None  # type: ignore
+    MySQLConnectionManager = None  # type: ignore
+    ensure_product_exists = None  # type: ignore
+    insert_capture = None  # type: ignore
+    insert_classification = None  # type: ignore
+    fetch_recent_classifications = None  # type: ignore
+    fetch_captures_with_counts = None  # type: ignore
+    fetch_classifications_by_capture = None  # type: ignore
 
 # Thử import FruitClassificationSystem từ main.py, đưa ra thông báo rõ ràng nếu thiếu
 try:
@@ -38,6 +61,11 @@ class MainGUIInterface:
         self.camera_thread = None
         self.is_camera_running = False
         self.selected_fruit = tk.StringVar(value="tomato")
+        self.save_to_db_var = tk.BooleanVar(value=False)
+        self._db = None  # type: ignore
+        self._product_id = None
+        self.last_results = None
+        self.last_image_path = None
 
         # Tuỳ chọn hiển thị/hiệu năng (sẽ tạo widget trong create_control_panel)
         self.hide_text_var = tk.BooleanVar(value=True)     # Chỉ vẽ khung, không vẽ chữ lên video
@@ -53,130 +81,34 @@ class MainGUIInterface:
 
     # ========================= CẤU HÌNH =========================
     def load_all_fruit_configs(self):
-        """Tải cấu hình cho tất cả các loại quả (đã sửa lỗi JSON của orange)."""
-        configs = {
-            "tomato": {
-                "name": "Cà chua",
-                "product": "tomato",
-                "size_thresholds_mm": {"S": [0, 55], "M": [55, 65], "L": [65, 75], "XL": [75, 999]},
-                "hsv_ranges": {
-                    "red": [
-                        {"H": [0, 10], "S": [80, 255], "V": [70, 255]},
-                        {"H": [160, 180], "S": [80, 255], "V": [70, 255]}
-                    ],
-                    "green": [{"H": [35, 85], "S": [60, 255], "V": [60, 255]}],
-                    "yellow": [{"H": [15, 35], "S": [50, 255], "V": [50, 255]}]
-                },
-                "lab_thresholds": {"a_star_ripe_min": 25, "a_star_green_max": 10},
-                "ripeness_logic": {
-                    "green_if": {"ratio_red_max": 0.15, "a_star_max": 10},
-                    "ripe_if": {"ratio_red_min": 0.35, "a_star_min": 20}
-                },
-                "defect": {"dark_delta_T": 25, "area_ratio_tau": 0.06},
-                "morphology": {"open_kernel": 3, "close_kernel": 5, "min_area": 200},
-                "watershed": {"distance_threshold_rel": 0.5}
-            },
-
-            "apple": {
-                "name": "Táo",
-                "product": "apple",
-                "size_thresholds_mm": {"S": [0, 60], "M": [60, 70], "L": [70, 85], "XL": [85, 999]},
-                "hsv_ranges": {
-                    "red": [
-                        {"H": [0, 15], "S": [100, 255], "V": [80, 255]},
-                        {"H": [165, 180], "S": [100, 255], "V": [80, 255]}
-                    ],
-                    "green": [{"H": [40, 80], "S": [50, 255], "V": [60, 255]}],
-                    "yellow": [{"H": [20, 40], "S": [60, 255], "V": [70, 255]}]
-                },
-                "lab_thresholds": {"a_star_ripe_min": 20, "a_star_green_max": 15},
-                "ripeness_logic": {
-                    "green_if": {"ratio_red_max": 0.20, "a_star_max": 15},
-                    "ripe_if": {"ratio_red_min": 0.40, "a_star_min": 18}
-                },
-                "defect": {"dark_delta_T": 30, "area_ratio_tau": 0.08},
-                "morphology": {"open_kernel": 4, "close_kernel": 6, "min_area": 300},
-                "watershed": {"distance_threshold_rel": 0.45}
-            },
-
-            "banana": {
-                "name": "Chuối",
-                "product": "banana",
-                "size_thresholds_mm": {"S": [0, 120], "M": [120, 150], "L": [150, 180], "XL": [180, 999]},
-                "hsv_ranges": {
-                    "yellow": [{"H": [15, 35], "S": [80, 255], "V": [80, 255]}],
-                    "green": [{"H": [40, 80], "S": [60, 255], "V": [60, 255]}],
-                    "brown": [{"H": [5, 25], "S": [50, 200], "V": [30, 100]}]
-                },
-                "lab_thresholds": {"b_star_yellow_min": 20, "a_star_green_max": 10},
-                "ripeness_logic": {
-                    "green_if": {"ratio_yellow_max": 0.30, "b_star_max": 15},
-                    "ripe_if": {"ratio_yellow_min": 0.70, "b_star_min": 25}
-                },
-                "defect": {"dark_delta_T": 20, "area_ratio_tau": 0.05},
-                "morphology": {"open_kernel": 3, "close_kernel": 4, "min_area": 400},
-                "watershed": {"distance_threshold_rel": 0.3},
-                "shape_analysis": {"min_aspect_ratio": 2.5}
-            },
-
-            "guava": {
-                "name": "Ổi",
-                "product": "guava",
-                "size_thresholds_mm": {"S": [0, 50], "M": [50, 70], "L": [70, 90], "XL": [90, 999]},
-                "hsv_ranges": {
-                    "green": [{"H": [40, 90], "S": [30, 255], "V": [60, 255]}],
-                    "white": [{"H": [0, 180], "S": [0, 50], "V": [150, 255]}],
-                    "yellow": [{"H": [20, 40], "S": [40, 255], "V": [100, 255]}]
-                },
-                "lab_thresholds": {"a_star_ripe_min": 5, "l_star_min": 120},
-                "ripeness_logic": {
-                    "green_if": {"ratio_white_max": 0.20, "l_star_max": 140},
-                    "ripe_if": {"ratio_white_min": 0.50, "l_star_min": 160}
-                },
-                "defect": {"dark_delta_T": 35, "area_ratio_tau": 0.04},
-                "morphology": {"open_kernel": 4, "close_kernel": 6, "min_area": 250},
-                "watershed": {"distance_threshold_rel": 0.55}
-            },
-
-            "orange": {
-                "name": "Cam",
-                "product": "orange",
-                "size_thresholds_mm": {"S": [0, 65], "M": [65, 75], "L": [75, 90], "XL": [90, 999]},
-                "hsv_ranges": {
-                    "orange": [{"H": [5, 25], "S": [100, 255], "V": [100, 255]}],
-                    "yellow": [{"H": [25, 40], "S": [80, 255], "V": [120, 255]}],
-                    "green": [{"H": [40, 80], "S": [60, 255], "V": [80, 255]}]
-                },
-                "lab_thresholds": {"a_star_ripe_min": 15, "b_star_orange_min": 30},
-                "ripeness_logic": {
-                    "green_if": {"ratio_orange_max": 0.25, "b_star_max": 20},
-                    "ripe_if": {"ratio_orange_min": 0.60, "b_star_min": 35}
-                },
-                "defect": {"dark_delta_T": 25, "area_ratio_tau": 0.06},
-                "morphology": {"open_kernel": 3, "close_kernel": 5, "min_area": 300},
-                "watershed": {"distance_threshold_rel": 0.5}
-            },
-
-            "mango": {
-                "name": "Xoài",
-                "product": "mango",
-                "size_thresholds_mm": {"S": [0, 80], "M": [80, 120], "L": [120, 160], "XL": [160, 999]},
-                "hsv_ranges": {
-                    "yellow": [{"H": [15, 35], "S": [80, 255], "V": [100, 255]}],
-                    "green": [{"H": [40, 80], "S": [60, 255], "V": [70, 255]}],
-                    "red":   [{"H": [0, 15],  "S": [80, 255], "V": [80, 255]}]
-                },
-                "lab_thresholds": {"a_star_ripe_min": 10, "b_star_yellow_min": 25},
-                "ripeness_logic": {
-                    "green_if": {"ratio_yellow_max": 0.30, "b_star_max": 20},
-                    "ripe_if": {"ratio_yellow_min": 0.60, "b_star_min": 30}
-                },
-                "defect": {"dark_delta_T": 28, "area_ratio_tau": 0.07},
-                "morphology": {"open_kernel": 4, "close_kernel": 5, "min_area": 350},
-                "watershed": {"distance_threshold_rel": 0.45}
+        """Tải cấu hình cho tất cả các loại quả từ fruit_configs.FruitConfigManager."""
+        try:
+            from fruit_configs import FruitConfigManager
+            mgr = FruitConfigManager()
+            return mgr.configs
+        except Exception:
+            # Fallback: nếu import lỗi, giữ lại tối thiểu một loại để app chạy được
+            return {
+                "tomato": {
+                    "name": "Cà chua",
+                    "product": "tomato",
+                    "size_thresholds_mm": {"S": [0, 55], "M": [55, 65], "L": [65, 75], "XL": [75, 999]},
+                    "hsv_ranges": {
+                        "red": [
+                            {"H": [0, 10], "S": [80, 255], "V": [70, 255]},
+                            {"H": [160, 180], "S": [80, 255], "V": [70, 255]}
+                        ]
+                    },
+                    "lab_thresholds": {"a_star_ripe_min": 25, "a_star_green_max": 10},
+                    "ripeness_logic": {
+                        "green_if": {"ratio_red_max": 0.15, "a_star_max": 10},
+                        "ripe_if": {"ratio_red_min": 0.35, "a_star_min": 20}
+                    },
+                    "defect": {"dark_delta_T": 25, "area_ratio_tau": 0.06},
+                    "morphology": {"open_kernel": 3, "close_kernel": 5, "min_area": 200},
+                    "watershed": {"distance_threshold_rel": 0.5}
+                }
             }
-        }
-        return configs
 
     # ========================= GIAO DIỆN =========================
     def create_interface(self):
@@ -336,14 +268,19 @@ class MainGUIInterface:
         ttk.Combobox(size_frame, textvariable=self.display_size_var, width=10, state="readonly",
                      values=["640x360", "800x450", "960x540", "1280x720"]).pack(side=tk.LEFT, padx=(6, 10))
 
-        # Thống kê và kết quả (giữ như cũ)
+        # Thống kê và kết quả
         stats_frame = tk.LabelFrame(parent, text="THỐNG KÊ & KẾT QUẢ",
                                     bg='#fdf6e3', padx=10, pady=10)
         stats_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.results_text = tk.Text(stats_frame, height=8, font=('Consolas', 9),
+        # Gói phần text + scrollbar vào một frame con để tránh chồng lấp với thanh công cụ bên dưới
+        results_area = tk.Frame(stats_frame, bg='#fdf6e3')
+        # Không expand để không che mất thanh nút bên dưới
+        results_area.pack(fill=tk.X, expand=False)
+
+        self.results_text = tk.Text(results_area, height=10, font=('Consolas', 9),
                                     state=tk.DISABLED, bg='#ffffff')
-        results_scroll = tk.Scrollbar(stats_frame, command=self.results_text.yview)
+        results_scroll = tk.Scrollbar(results_area, command=self.results_text.yview)
         self.results_text.configure(yscrollcommand=results_scroll.set)
         self.results_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         results_scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -352,7 +289,7 @@ class MainGUIInterface:
         table_frame = tk.LabelFrame(parent, text="BẢNG REAL-TIME", bg='#fdf6e3')
         table_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
 
-        cols = ("ID", "Size", "Ripeness", "Defect", "D(mm)")
+        cols = ("Mã", "Kích thước", "Độ chín", "Tình trạng", "ĐK (mm)")
         self.live_table = ttk.Treeview(table_frame, columns=cols, show="headings", height=8)
         for c, w in zip(cols, (60, 80, 100, 100, 80)):
             self.live_table.heading(c, text=c)
@@ -370,6 +307,22 @@ class MainGUIInterface:
         tk.Button(export_frame, text="Báo cáo", command=self.export_report,
                   bg='#e67e22', fg='white', font=('Arial', 9)
                   ).pack(side=tk.LEFT, padx=(0, 5))
+
+        tk.Checkbutton(export_frame, text="Lưu vào DB", variable=self.save_to_db_var,
+                       bg='#fdf6e3').pack(side=tk.LEFT, padx=(10, 5))
+
+        # Nhập tên phiên để dễ xem lại
+        tk.Label(export_frame, text="Tên phiên:", bg='#fdf6e3').pack(side=tk.LEFT, padx=(10, 4))
+        self.session_name_var = tk.StringVar(value="")
+        tk.Entry(export_frame, textvariable=self.session_name_var, width=18).pack(side=tk.LEFT)
+
+        tk.Button(export_frame, text="Lưu DB", command=self.manual_save_db,
+                  bg='#27ae60', fg='white', font=('Arial', 9)
+                  ).pack(side=tk.LEFT)
+
+        tk.Button(export_frame, text="Xem DB", command=self.open_db_viewer,
+                  bg='#2980b9', fg='white', font=('Arial', 9)
+                  ).pack(side=tk.LEFT, padx=(5, 0))
 
         tk.Button(export_frame, text="Xóa", command=self.clear_results,
                   bg='#95a5a6', fg='white', font=('Arial', 9)
@@ -538,6 +491,16 @@ class MainGUIInterface:
             valid_results = [r for r in results if r is not None]
             self.update_image_statistics(valid_results, file_path)
             self.update_status(f"Xử lý thành công: {len(valid_results)} đối tượng")
+
+            # Lưu trạng thái gần nhất và auto lưu DB nếu bật
+            self.last_results = valid_results
+            self.last_image_path = file_path
+            if self.save_to_db_var.get():
+                try:
+                    self.save_results_to_db(valid_results, source="single_image", image_path=file_path)
+                    self.update_results("→ Đã lưu DB cho ảnh đơn lẻ")
+                except Exception as db_e:
+                    self.update_results(f"DB lỗi: {db_e}")
         except Exception as e:
             messagebox.showerror("Lỗi", f"Không thể xử lý ảnh:\n{str(e)}")
             self.update_status("Lỗi xử lý ảnh")
@@ -612,6 +575,14 @@ class MainGUIInterface:
 
                     valid_results = [r for r in results if r is not None]
                     batch_results.extend(valid_results)
+
+                    # Tùy chọn: lưu DB theo từng ảnh nếu bật
+                    if self.save_to_db_var.get() and valid_results:
+                        try:
+                            self.save_results_to_db(valid_results, source="batch", image_path=image_path)
+                            self.root.after(0, lambda: self.update_results("→ Đã lưu DB ảnh batch"))
+                        except Exception as db_e:
+                            self.root.after(0, lambda e=str(db_e): self.update_results(f"DB lỗi: {e}"))
 
                     log_text = f"✓ {base_name}: {len(valid_results)} đối tượng"
                     self.root.after(0, lambda t=log_text: self.update_results(t))
@@ -865,6 +836,17 @@ class MainGUIInterface:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
         self.update_results(f"Đã lưu frame: {timestamp}")
 
+        # Cập nhật last_* và lưu DB nếu bật
+        valid_results = [r for r in results if r is not None]
+        self.last_results = valid_results
+        self.last_image_path = original_path
+        if self.save_to_db_var.get() and valid_results:
+            try:
+                self.save_results_to_db(valid_results, source="camera", image_path=original_path)
+                self.update_results("→ Đã lưu DB cho frame camera")
+            except Exception as db_e:
+                self.update_results(f"DB lỗi: {db_e}")
+
     def create_batch_report(self, results, output_dir: str, processed_count: int, total_files: int):
         from collections import Counter
         if not results:
@@ -1018,6 +1000,194 @@ class MainGUIInterface:
         self.results_text.config(state=tk.DISABLED)
         self.update_status("Đã xóa kết quả")
 
+    # ========================= LƯU DỮ LIỆU VÀO DB =========================
+    def _init_db_if_needed(self):
+        if getattr(self, "_db", None) is not None:
+            return
+        # Nếu chưa có symbols do import lúc khởi động thất bại, thử import lại và báo lỗi chi tiết
+        global load_app_config, MySQLConnectionManager, ensure_product_exists, insert_capture, insert_classification
+        if MySQLConnectionManager is None or load_app_config is None:
+            try:
+                from db_helper import (
+                    load_config as _load_app_config,
+                    MySQLConnectionManager as _MySQLConnectionManager,
+                    ensure_product_exists as _ensure_product_exists,
+                    insert_capture as _insert_capture,
+                    insert_classification as _insert_classification,
+                )
+                load_app_config = _load_app_config
+                MySQLConnectionManager = _MySQLConnectionManager
+                ensure_product_exists = _ensure_product_exists
+                insert_capture = _insert_capture
+                insert_classification = _insert_classification
+            except Exception as e:
+                raise RuntimeError(f"Lỗi import db_helper: {e}")
+        cfg = load_app_config()
+        self._db = MySQLConnectionManager(cfg)
+
+    def _ensure_product_id(self) -> int:
+        self._init_db_if_needed()
+        fruit_key = self.selected_fruit.get()
+        cfg = self.fruit_configs.get(fruit_key, {})
+        product_name = cfg.get('product', fruit_key)
+        description = cfg.get('name', fruit_key)
+        pid = ensure_product_exists(self._db, product_name, description)
+        self._product_id = pid
+        return pid
+
+    def save_results_to_db(self, results, source: str, image_path: Optional[str]):
+        if not results:
+            return
+        product_id = self._ensure_product_id()
+        # Nếu người dùng nhập tên phiên, lưu kèm theo để dễ tìm kiếm
+        session_suffix = self.session_name_var.get().strip() if hasattr(self, 'session_name_var') else ""
+        source_with_session = f"{source}{' | ' + session_suffix if session_suffix else ''}"
+        capture_id = insert_capture(self._db, product_id, source=source_with_session, image_path=image_path)
+        for r in results:
+            if not r:
+                continue
+            size_label = r.get('size')
+            ripeness_label = r.get('ripeness')
+            defect_detected = r.get('defect') == 'Defective'
+            defect_area_ratio = r.get('defect_ratio')
+            color_ratio_red = r.get('ratio_red') or r.get('red_ratio')
+            color_ratio_green = r.get('ratio_green') or r.get('green_ratio')
+            a_star_value = r.get('a_star')
+            b_star_value = r.get('b_star')
+            confidence = r.get('confidence')
+            extra = {
+                'd_eq_mm': r.get('d_eq_mm'),
+                'area_px': r.get('area_px'),
+                'circularity': r.get('circularity'),
+                'raw': r,
+            }
+            insert_classification(
+                self._db,
+                capture_id=capture_id,
+                product_id=product_id,
+                size_label=size_label,
+                ripeness_label=ripeness_label,
+                defect_detected=defect_detected,
+                defect_area_ratio=defect_area_ratio,
+                color_ratio_red=color_ratio_red,
+                color_ratio_green=color_ratio_green,
+                a_star_value=a_star_value,
+                b_star_value=b_star_value,
+                confidence=confidence,
+                extra=extra,
+            )
+
+    def manual_save_db(self):
+        try:
+            if not self.last_results:
+                messagebox.showwarning("Chú ý", "Chưa có kết quả nào để lưu.")
+                return
+            self.save_results_to_db(self.last_results, source="manual", image_path=self.last_image_path)
+            messagebox.showinfo("Thành công", "Đã lưu dữ liệu vào DB")
+        except Exception as e:
+            messagebox.showerror("DB lỗi", str(e))
+
+    # ========================= XEM DỮ LIỆU DB =========================
+    def open_db_viewer(self):
+        try:
+            self._init_db_if_needed()
+            # Lazy import fallback nếu cần
+            global fetch_captures_with_counts, fetch_classifications_by_capture
+            if fetch_captures_with_counts is None or fetch_classifications_by_capture is None:
+                from db_helper import fetch_captures_with_counts as _caplist, fetch_classifications_by_capture as _bycap
+                fetch_captures_with_counts = _caplist
+                fetch_classifications_by_capture = _bycap
+
+            viewer = tk.Toplevel(self.root)
+            viewer.title("Phiên đã lưu và kết quả")
+            viewer.geometry("1100x600")
+
+            # Top filter
+            filter_frame = tk.Frame(viewer)
+            filter_frame.pack(fill=tk.X, pady=(6, 6))
+            tk.Label(filter_frame, text="Lọc theo tên phiên:").pack(side=tk.LEFT)
+            session_filter = tk.StringVar(value="")
+            tk.Entry(filter_frame, textvariable=session_filter, width=24).pack(side=tk.LEFT, padx=(6, 10))
+            tk.Button(filter_frame, text="Tải", command=lambda: load_captures()).pack(side=tk.LEFT)
+
+            content_frame = tk.Frame(viewer)
+            content_frame.pack(fill=tk.BOTH, expand=True)
+
+            # Left: capture list
+            left_frame = tk.Frame(content_frame)
+            left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            cols_cap = ("ID", "Thời gian", "Phiên", "Sản phẩm", "Số mục", "Ảnh")
+            tree_cap = ttk.Treeview(left_frame, columns=cols_cap, show="headings")
+            for c, w in zip(cols_cap, (70, 140, 220, 120, 70, 380)):
+                tree_cap.heading(c, text=c)
+                tree_cap.column(c, width=w, anchor=tk.W)
+            tree_cap.pack(fill=tk.BOTH, expand=True)
+
+            # Right: details
+            right_frame = tk.Frame(content_frame)
+            right_frame.pack(side=tk.RIGHT, fill=tk.BOTH)
+            img_label = tk.Label(right_frame)
+            img_label.pack(pady=(4, 6))
+            cols_cls = ("ID", "Kích thước", "Độ chín", "Lỗi", "Đ.tin", "Thời gian")
+            tree_cls = ttk.Treeview(right_frame, columns=cols_cls, show="headings", height=12)
+            for c, w in zip(cols_cls, (70, 90, 100, 60, 70, 140)):
+                tree_cls.heading(c, text=c)
+                tree_cls.column(c, width=w, anchor=tk.W)
+            tree_cls.pack(fill=tk.BOTH, expand=True)
+
+            # image preview helper
+            from PIL import Image, ImageTk
+            def show_image(path: str):
+                try:
+                    if not path or not os.path.exists(path):
+                        img_label.config(text="(Không có ảnh)")
+                        return
+                    im = Image.open(path)
+                    im.thumbnail((480, 360))
+                    img = ImageTk.PhotoImage(im)
+                    img_label.configure(image=img)
+                    img_label.image = img
+                except Exception:
+                    img_label.config(text="(Không hiển thị được ảnh)")
+
+            def on_select_capture(_evt=None):
+                sel = tree_cap.selection()
+                if not sel:
+                    return
+                item = tree_cap.item(sel[0])
+                values = item['values']
+                cap_id = int(values[0])
+                img_path = values[5]
+                # load classifications
+                rows = fetch_classifications_by_capture(self._db, cap_id)
+                for r in tree_cls.get_children():
+                    tree_cls.delete(r)
+                for r in rows:
+                    tree_cls.insert("", tk.END, values=(
+                        r.get('id'), r.get('size_label'), r.get('ripeness_label'),
+                        "Có" if r.get('defect_detected') else "Không",
+                        r.get('confidence') if r.get('confidence') is not None else '',
+                        str(r.get('created_at')),
+                    ))
+                show_image(img_path)
+
+            tree_cap.bind('<<TreeviewSelect>>', on_select_capture)
+
+            def load_captures():
+                for r in tree_cap.get_children():
+                    tree_cap.delete(r)
+                rows = fetch_captures_with_counts(self._db, session_like=session_filter.get().strip(), limit=500)
+                for r in rows:
+                    tree_cap.insert("", tk.END, values=(
+                        r.get('id'), str(r.get('captured_at')), r.get('source') or '',
+                        r.get('product'), r.get('num_items'), r.get('image_path') or ''
+                    ))
+
+            load_captures()
+
+        except Exception as e:
+            messagebox.showerror("DB lỗi", str(e))
+
     # ========================= VÒNG ĐỜI APP =========================
     def run(self):
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -1036,6 +1206,12 @@ class MainGUIInterface:
                     pass
         try:
             cv2.destroyAllWindows()
+        except Exception:
+            pass
+        # Đóng DB nếu có
+        try:
+            if getattr(self, "_db", None) is not None:
+                self._db.close()
         except Exception:
             pass
         self.root.destroy()
