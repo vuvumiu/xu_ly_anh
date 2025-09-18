@@ -468,13 +468,3 @@ A: Tạo config riêng cho mỗi loại, hoặc dùng KNN với features chung.
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
-## Contact
-
-- **Developer**: [Tên của bạn]
-- **Email**: your.email@example.com
-- **Project Link**: https://github.com/username/fruit-classification-system
-
----
-
-**Lưu ý quan trọng**: Hệ thống được thiết kế cho mục đích học tập và nghiên cứu. Để sử dụng trong sản xuất thực tế, cần thêm các biện pháp an toàn, redundancy và testing kỹ lưỡng hơn.
