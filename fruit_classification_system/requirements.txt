@@ -1,0 +1,55 @@
+# requirements.txt - Thư viện cần thiết cho hệ thống phân loại sản phẩm
+
+# Computer Vision và Image Processing
+opencv-python>=4.5.0
+opencv-contrib-python>=4.5.0
+
+# Numerical Computing
+numpy>=1.19.0
+scipy>=1.7.0
+
+# GUI Framework
+tkinter  # Built-in với Python, không cần pip install
+
+# Data Processing và Analysis
+pandas>=1.3.0
+matplotlib>=3.3.0
+seaborn>=0.11.0
+
+# File I/O và Data Format
+Pillow>=8.0.0
+imageio>=2.9.0
+
+# Optional: Machine Learning (nếu muốn mở rộng)
+scikit-learn>=1.0.0  # Chỉ để so sánh với KNN tự cài
+scikit-image>=0.18.0
+
+# Optional: Advanced Visualization
+plotly>=5.0.0  # Cho biểu đồ interactive
+
+# Optional: Web Interface (nếu muốn tạo web app)
+flask>=2.0.0
+flask-socketio>=5.0.0
+
+# Utility Libraries
+tqdm>=4.62.0  # Progress bars
+colorama>=0.4.4  # Colored terminal output
+
+# System và OS
+psutil>=5.8.0  # System monitoring
+pathlib  # Built-in với Python 3.4+
+
+# Configuration Management
+pyyaml>=5.4.0  # YAML config support
+configparser  # Built-in với Python
+
+# Logging và Debug
+loguru>=0.5.3  # Advanced logging
+
+# Testing (Optional)
+pytest>=6.0.0
+pytest-cov>=2.12.0
+
+# Documentation (Optional)
+sphinx>=4.0.0
+sphinx-rtd-theme>=0.5.0

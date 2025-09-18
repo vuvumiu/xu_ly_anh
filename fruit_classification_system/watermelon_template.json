@@ -1,0 +1,91 @@
+{
+  "name": "Dưa hấu",
+  "name_en": "dưa_hấu",
+  "product": "dưa_hấu",
+  "description": "Cấu hình cho Dưa hấu",
+  "size_thresholds_mm": {
+    "S": [
+      0,
+      50
+    ],
+    "M": [
+      50,
+      70
+    ],
+    "L": [
+      70,
+      90
+    ],
+    "XL": [
+      90,
+      999
+    ]
+  },
+  "hsv_ranges": {
+    "primary_color": [
+      {
+        "H": [
+          0,
+          30
+        ],
+        "S": [
+          80,
+          255
+        ],
+        "V": [
+          80,
+          255
+        ]
+      }
+    ],
+    "secondary_color": [
+      {
+        "H": [
+          40,
+          80
+        ],
+        "S": [
+          60,
+          255
+        ],
+        "V": [
+          60,
+          255
+        ]
+      }
+    ]
+  },
+  "lab_thresholds": {
+    "a_star_ripe_min": 15,
+    "l_star_min": 50
+  },
+  "ripeness_logic": {
+    "green_if": {
+      "ratio_primary_max": 0.3,
+      "a_star_max": 10
+    },
+    "ripe_if": {
+      "ratio_primary_min": 0.6,
+      "a_star_min": 20
+    }
+  },
+  "defect": {
+    "dark_delta_T": 25,
+    "area_ratio_tau": 0.06,
+    "contrast_threshold": 30
+  },
+  "morphology": {
+    "open_kernel": 3,
+    "close_kernel": 5,
+    "min_area": 200,
+    "max_area": 50000
+  },
+  "watershed": {
+    "distance_threshold_rel": 0.5,
+    "min_distance": 10
+  },
+  "shape_constraints": {
+    "min_circularity": 0.6,
+    "max_aspect_ratio": 2.0
+  }
+}
