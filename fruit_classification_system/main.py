@@ -5,6 +5,7 @@ import json
 import time
 from datetime import datetime
 import os
+from sklearn.cluster import KMeans
 
 
 class FruitClassificationSystem:
@@ -80,6 +81,33 @@ class FruitClassificationSystem:
         lab_corrected = cv2.merge([l_corrected, a, b])
         return cv2.cvtColor(lab_corrected, cv2.COLOR_LAB2BGR)
 
+    # ====== BỔ SUNG THEO GIÁO TRÌNH: Tiền xử lý ======
+    def histogram_equalization_global(self, bgr):
+        """Cân bằng lược đồ xám toàn cục trên kênh độ sáng (YCrCb-Y)."""
+        ycrcb = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
+        y, cr, cb = cv2.split(ycrcb)
+        y_eq = cv2.equalizeHist(y)
+        out = cv2.merge([y_eq, cr, cb])
+        return cv2.cvtColor(out, cv2.COLOR_YCrCb2BGR)
+
+    def fourier_low_pass(self, gray, radius_ratio: float = 0.1):
+        """Lọc thông thấp theo miền tần số (DFT) trên ảnh xám.
+        radius_ratio: bán kính mặt nạ tròn so với kích thước ngắn hơn của ảnh.
+        """
+        h, w = gray.shape[:2]
+        dft = cv2.dft(np.float32(gray), flags=cv2.DFT_COMPLEX_OUTPUT)
+        dft_shift = np.fft.fftshift(dft)
+        mask = np.zeros((h, w, 2), np.float32)
+        cy, cx = h // 2, w // 2
+        r = int(min(h, w) * max(0.02, min(0.45, radius_ratio)))
+        cv2.circle(mask, (cx, cy), r, (1, 1), -1)
+        fshift = dft_shift * mask
+        f_ishift = np.fft.ifftshift(fshift)
+        img_back = cv2.idft(f_ishift)
+        img_back = cv2.magnitude(img_back[:, :, 0], img_back[:, :, 1])
+        img_back = cv2.normalize(img_back, None, 0, 255, cv2.NORM_MINMAX)
+        return np.uint8(img_back)
+
     def denoise(self, img, method="median", k=3):
         """
         Giảm nhiễu cho ảnh
@@ -119,6 +147,24 @@ class FruitClassificationSystem:
 
         return mask
 
+    def segment_with_otsu(self, bgr):
+        """Ngưỡng Otsu trên ảnh xám sau khi lọc thông thấp Fourier (tùy chọn)."""
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        # Lọc thông thấp để giảm nhiễu tần cao trước Otsu
+        low = self.fourier_low_pass(gray, radius_ratio=0.08)
+        _, mask = cv2.threshold(low, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        return mask
+
+    def segment_in_ycbcr(self, bgr, cb_range=None, cr_range=None):
+        """Phân đoạn trong không gian YCbCr bằng ngưỡng Cb/Cr (nếu cấu hình yêu cầu)."""
+        ycrcb = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
+        y, cr, cb = cv2.split(ycrcb)
+        cb_lo, cb_hi = (0, 255) if cb_range is None else cb_range
+        cr_lo, cr_hi = (0, 255) if cr_range is None else cr_range
+        mask_cb = cv2.inRange(cb, cb_lo, cb_hi)
+        mask_cr = cv2.inRange(cr, cr_lo, cr_hi)
+        return cv2.bitwise_and(mask_cb, mask_cr)
+
     def clean_mask(self, mask):
         """
         Làm sạch mask bằng các phép hình thái học
@@ -146,32 +192,19 @@ class FruitClassificationSystem:
 
         return mask
 
-    def watershed_separation(self, mask):
-        """
-        Tách các vật thể dính nhau bằng thuật toán Watershed
-
-        Chức năng: Phân tách các quả chồng lên nhau thành các đối tượng riêng biệt
-        """
-        # Tính Distance Transform
-        dist_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
-
-        # Tìm local maxima làm markers
-        threshold_rel = self.config["watershed"]["distance_threshold_rel"]
-        _, sure_fg = cv2.threshold(dist_transform, threshold_rel * dist_transform.max(), 255, 0)
-        sure_fg = np.uint8(sure_fg)
-
-        # Tìm markers
-        _, markers = cv2.connectedComponents(sure_fg)
-
-        # Áp dụng Watershed
-        markers = markers + 1  # Đảm bảo background không phải 0
-        markers[mask == 0] = 0  # Đánh dấu background
-
-        # Chuyển mask sang 3 kênh cho watershed
-        mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-        markers = cv2.watershed(mask_3ch, markers)
-
-        return markers, markers.max()
+    def find_objects_by_contours(self, bgr, mask, use_canny: bool = False):
+        """Tách nhiều đối tượng bằng contour; có thể dùng Canny để tinh biên."""
+        proc = mask
+        if use_canny:
+            # Làm trơn Gaussian (bước 1 trong Canny) rồi dò biên
+            blurred = cv2.GaussianBlur(bgr, (3, 3), 1.0)
+            edges = cv2.Canny(cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY), 60, 150)
+            proc = cv2.bitwise_and(proc, edges)
+        contours, _ = cv2.findContours(proc, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Lọc theo diện tích tối thiểu từ cấu hình
+        min_area = self.config.get("morphology", {}).get("min_area", 200)
+        contours = [c for c in contours if cv2.contourArea(c) >= min_area]
+        return contours
 
     def extract_features(self, bgr, obj_mask, object_id):
         """
@@ -217,6 +250,29 @@ class FruitClassificationSystem:
         color_ratios = {}
         for color_key in self.config.get("hsv_ranges", {}).keys():
             color_ratios[f"ratio_{color_key}"] = self.calculate_color_ratio(hsv, obj_mask, color_key)
+
+        # (Tùy chọn) K-means trên HSV trong vùng đối tượng để ước lượng cụm màu chiếm ưu thế
+        try:
+            obj_pixels = hsv[obj_mask > 0]
+            if obj_pixels.shape[0] >= 200:  # đủ mẫu
+                k = 3
+                km = KMeans(n_clusters=k, n_init=5, random_state=0)
+                labels_k = km.fit_predict(obj_pixels)
+                centers = km.cluster_centers_  # H,S,V trung bình mỗi cụm
+                # Ước lượng tỉ lệ cụm có H nằm trong dải "đỏ" hoặc "xanh" nếu có trong cấu hình
+                def in_any_range(h_val, ranges):
+                    for r in ranges:
+                        if r["H"][0] <= h_val <= r["H"][1]:
+                            return True
+                    return False
+                if "red" in self.config.get("hsv_ranges", {}):
+                    red_mask = [in_any_range(c[0], self.config["hsv_ranges"]["red"]) for c in centers]
+                    color_ratios["ratio_red_km"] = float(np.sum(red_mask[i] for i in labels_k)) / max(1, len(labels_k))
+                if "green" in self.config.get("hsv_ranges", {}):
+                    green_mask = [in_any_range(c[0], self.config["hsv_ranges"]["green"]) for c in centers]
+                    color_ratios["ratio_green_km"] = float(np.sum(green_mask[i] for i in labels_k)) / max(1, len(labels_k))
+        except Exception:
+            pass
 
         # Phát hiện khuyết tật
         defect_ratio = self.detect_defects(lab[:, :, 0], obj_mask)
@@ -391,16 +447,16 @@ class FruitClassificationSystem:
 
             # Lấy thông tin
             x, y, w, h = result["bbox"]
-            size = result.get("size", "Unknown")
-            ripeness = result.get("ripeness", "Unknown")
-            defect = result.get("defect", "OK")
+            size = result.get("size", "?")
+            ripeness = result.get("ripeness_vi", result.get("ripeness", "?"))
+            defect = result.get("defect_vi", "?")
 
             # Chọn màu khung dựa trên trạng thái
-            if defect == "Defective":
+            if defect in ("Khuyết tật", "Defective"):
                 color = (0, 0, 255)  # Đỏ cho hỏng
-            elif ripeness == "Ripe":
+            elif ripeness in ("Chín", "Ripe"):
                 color = (0, 255, 0)  # Xanh lá cho chín
-            elif ripeness == "Green":
+            elif ripeness in ("Xanh", "Green"):
                 color = (0, 255, 255)  # Vàng cho xanh
             else:
                 color = (255, 0, 0)  # Xanh dương cho trung bình
@@ -412,10 +468,10 @@ class FruitClassificationSystem:
                 # Chỉ vẽ text chi tiết khi ở chế độ "full"
                 text_lines = [
                     f"ID:{result['id']}",
-                    f"Size:{size}",
-                    f"Ripeness:{ripeness}",
-                    f"Status:{defect}",
-                    f"D:{result['d_eq_mm']:.1f}mm"
+                    f"Kích thước:{size}",
+                    f"Độ chín:{ripeness}",
+                    f"Tình trạng:{defect}",
+                    f"ĐK:{result['d_eq_mm']:.1f}mm"
                 ]
                 for i, line in enumerate(text_lines):
                     yy = max(0, y - 6 - i * 15)
@@ -425,14 +481,14 @@ class FruitClassificationSystem:
         if draw_global_stats:
             # Thống kê tổng quan nhỏ gọn ở góc trái, có nền mờ
             total_count = len([r for r in results if r is not None])
-            ripe_count = len([r for r in results if r and r.get("ripeness") == "Ripe"])
-            green_count = len([r for r in results if r and r.get("ripeness") == "Green"])
-            defective_count = len([r for r in results if r and r.get("defect") == "Defective"])
+            ripe_count = len([r for r in results if r and r.get("ripeness_vi", r.get("ripeness")) in ("Chín", "Ripe")])
+            green_count = len([r for r in results if r and r.get("ripeness_vi", r.get("ripeness")) in ("Xanh", "Green")])
+            defective_count = len([r for r in results if r and r.get("defect_vi", r.get("defect")) in ("Khuyết tật", "Defective")])
             stats_text = [
-                f"Total: {total_count}",
-                f"Ripe: {ripe_count}",
-                f"Green: {green_count}",
-                f"Defective: {defective_count}"
+                f"Tổng: {total_count}",
+                f"Chín: {ripe_count}",
+                f"Xanh: {green_count}",
+                f"Khuyết tật: {defective_count}"
             ]
 
             overlay = vis.copy()
@@ -452,16 +508,24 @@ class FruitClassificationSystem:
 
         Chức năng: Pipeline chính thực hiện tất cả các bước xử lý
         """
-        # 1. Tiền xử lý ảnh
-        bgr_corrected = self.color_correction_lab_clahe(bgr)
-        denoised = self.denoise(bgr_corrected, method="median", k=3)
+        # 1. Tiền xử lý ảnh (theo giáo trình)
+        # - Histogram equalization toàn cục trên Y
+        heq = self.histogram_equalization_global(bgr)
+        # - Lọc trung vị/gaussian (ưu tiên median)
+        denoised = self.denoise(heq, method="median", k=3)
 
-        # 2. Phân đoạn
-        mask = self.segment_by_color_hsv_lab(denoised)
+        # 2. Phân đoạn: ưu tiên HSV; có thể kết hợp Otsu/YCbCr nếu cần
+        mask_hsv = self.segment_by_color_hsv_lab(denoised)
+        # (Tùy chọn) Otsu để bổ trợ/giới hạn nền
+        try:
+            mask_otsu = self.segment_with_otsu(denoised)
+            mask = cv2.bitwise_and(mask_hsv, mask_otsu)
+        except Exception:
+            mask = mask_hsv
         mask_clean = self.clean_mask(mask)
 
-        # 3. Tách vật thể dính
-        labels, n_objects = self.watershed_separation(mask_clean)
+        # 3. Tách nhiều đối tượng bằng contour (Canny tùy chọn)
+        contours = self.find_objects_by_contours(denoised, mask_clean, use_canny=False)
 
         # 4. Hiệu chuẩn tỷ lệ (chỉ thực hiện một lần)
         if self.scale_state["mm_per_px"] is None:
@@ -471,8 +535,9 @@ class FruitClassificationSystem:
 
         # 5. Trích xuất đặc trưng và phân loại
         results = []
-        for obj_id in range(1, n_objects + 1):
-            obj_mask = (labels == obj_id).astype(np.uint8) * 255
+        for obj_id, contour in enumerate(contours, start=1):
+            obj_mask = np.zeros(mask_clean.shape, dtype=np.uint8)
+            cv2.drawContours(obj_mask, [contour], -1, 255, thickness=-1)
             features = self.extract_features(denoised, obj_mask, obj_id)
 
             if features is not None:
@@ -480,8 +545,8 @@ class FruitClassificationSystem:
                 features.update(classification)
                 results.append(features)
 
-        # 6. Vẽ kết quả
-        vis = self.draw_results(denoised, labels, results)
+        # 6. Vẽ kết quả (labels không dùng trong hiển thị hiện tại)
+        vis = self.draw_results(denoised, None, results)
 
         return vis, results, mask_clean
 
