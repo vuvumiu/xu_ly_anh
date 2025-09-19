@@ -632,11 +632,18 @@ class MainGUIInterface:
 
             # Khởi tạo hệ thống với config hiện tại
             fruit_key = self.selected_fruit.get()
+            if fruit_key not in self.fruit_configs:
+                raise Exception(f"Không tìm thấy cấu hình cho loại quả: {fruit_key}")
+                
             temp_config_file = f"temp_{fruit_key}_config.json"
             with open(temp_config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.fruit_configs[fruit_key], f, indent=2, ensure_ascii=False)
 
-            self.current_system = FruitClassificationSystem(temp_config_file)
+            # Khởi tạo hệ thống với error handling
+            try:
+                self.current_system = FruitClassificationSystem(temp_config_file)
+            except Exception as e:
+                raise Exception(f"Lỗi khởi tạo hệ thống xử lý: {str(e)}")
 
             # Áp dụng chế độ render (tránh chồng chữ trên video)
             if hasattr(self.current_system, "set_render_mode"):
@@ -670,6 +677,9 @@ class MainGUIInterface:
         except Exception as e:
             messagebox.showerror("Lỗi Camera", f"Không thể khởi động camera:\n{str(e)}")
             self.update_status("Lỗi khởi động camera")
+            # Cleanup nếu có lỗi
+            if hasattr(self, 'current_system') and self.current_system is not None:
+                self.current_system = None
 
     def stop_camera(self):
         self.is_camera_running = False
@@ -691,48 +701,75 @@ class MainGUIInterface:
     def camera_processing_loop(self, camera_id: int):
         # mở cam theo backend nhanh hơn
         w, h = getattr(self, "_display_wh", (960, 540))
-        try:
-            cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
-        except Exception:
-            cap = cv2.VideoCapture(camera_id)
-
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-        cap.set(cv2.CAP_PROP_FPS, 30)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-        # ép kích thước cửa sổ hiển thị
-        cv2.namedWindow("Camera - Phan loai san pham", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Camera - Phan loai san pham", w, h)
-
-        cv2.namedWindow("Segmentation Mask", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("Segmentation Mask", int(w * 0.5), int(h * 0.5))
-
-        frame_count = 0
-
-        # Ghi video nếu cần
+        cap = None
         video_writer = None
-        if self.recording_var.get():
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            video_writer = cv2.VideoWriter(f"recording_{timestamp}.avi", fourcc, 20.0, (w, h))
-
+        
         try:
+            # Khởi tạo camera với error handling tốt hơn
+            try:
+                cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+            except Exception:
+                cap = cv2.VideoCapture(camera_id)
+            
+            if not cap.isOpened():
+                raise Exception(f"Không thể mở camera {camera_id}")
+
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+            cap.set(cv2.CAP_PROP_FPS, 30)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            # ép kích thước cửa sổ hiển thị
+            cv2.namedWindow("Camera - Phan loai san pham", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Camera - Phan loai san pham", w, h)
+
+            cv2.namedWindow("Segmentation Mask", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Segmentation Mask", int(w * 0.5), int(h * 0.5))
+
+            frame_count = 0
+
+            # Ghi video nếu cần
+            if hasattr(self, 'recording_var') and self.recording_var.get():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                video_writer = cv2.VideoWriter(f"recording_{timestamp}.avi", fourcc, 20.0, (w, h))
+
+            # Kiểm tra hệ thống xử lý
+            if self.current_system is None:
+                raise Exception("Hệ thống xử lý chưa được khởi tạo")
+
             while self.is_camera_running:
                 ret, frame = cap.read()
                 if not ret:
+                    self.root.after(0, lambda: self.update_status("Không thể đọc frame từ camera"))
                     break
                 frame_count += 1
 
-                vis, results, mask = self.current_system.process_frame(frame)
+                try:
+                    # Xử lý frame với error handling
+                    vis, results, mask = self.current_system.process_frame(frame)
+                    
+                    # Kiểm tra kết quả xử lý
+                    if vis is None or mask is None:
+                        self.root.after(0, lambda: self.update_status("Lỗi xử lý frame"))
+                        continue
+
+                except Exception as e:
+                    self.root.after(0, lambda: self.update_status(f"Lỗi xử lý frame: {str(e)}"))
+                    continue
 
                 # đảm bảo kích thước hiển thị gọn
                 if vis.shape[1] != w or vis.shape[0] != h:
                     vis = cv2.resize(vis, (w, h))
-                if mask.shape[1] != int(w * 0.5) or mask.shape[0] != int(h * 0.5):
-                    mask_disp = cv2.resize(mask, (int(w * 0.5), int(h * 0.5)))
+                
+                # Xử lý mask display
+                if mask is not None:
+                    if mask.shape[1] != int(w * 0.5) or mask.shape[0] != int(h * 0.5):
+                        mask_disp = cv2.resize(mask, (int(w * 0.5), int(h * 0.5)))
+                    else:
+                        mask_disp = mask
                 else:
-                    mask_disp = mask
+                    mask_disp = None
 
                 # cập nhật bảng dữ liệu định kỳ (mỗi ~0.5s)
                 if frame_count % 15 == 0:
@@ -741,26 +778,34 @@ class MainGUIInterface:
                     if valid_results:
                         self.update_camera_statistics(valid_results, frame_count)
 
+                # Ghi video nếu cần
                 if video_writer is not None:
                     video_writer.write(vis)
 
+                # Hiển thị kết quả
                 cv2.imshow("Camera - Phan loai san pham", vis)
-                cv2.imshow("Segmentation Mask", mask_disp)
+                if mask_disp is not None:
+                    cv2.imshow("Segmentation Mask", mask_disp)
 
                 key = cv2.waitKey(1) & 0xFF
                 if key == 27:  # ESC
                     break
                 elif key == ord('s'):
                     self.save_camera_frame(frame, vis, results, frame_count)
+                    
         except Exception as e:
             self.root.after(0, lambda: self.update_status(f"Lỗi camera processing: {str(e)}"))
+            self.root.after(0, lambda: messagebox.showerror("Lỗi Camera", f"Lỗi xử lý camera:\n{str(e)}"))
         finally:
-            cap.release()
+            # Cleanup resources
+            if cap is not None:
+                cap.release()
             if video_writer is not None:
                 video_writer.release()
             cv2.destroyAllWindows()
             self.is_camera_running = False
             self.root.after(0, lambda: self.camera_btn.config(text="BẮT ĐẦU CAMERA", bg='#3498db'))
+            self.root.after(0, lambda: self.update_status("Camera đã dừng"))
 
     # ========================= HIỂN THỊ & BÁO CÁO =========================
     def display_image_results(self, vis, mask, results, image_path: str):
@@ -812,8 +857,9 @@ class MainGUIInterface:
         if not results:
             return
         total = len(results)
-        ripe_count = sum(1 for r in results if r.get('ripeness') == 'Ripe')
-        defect_count = sum(1 for r in results if r.get('defect') == 'Defective')
+        # Sửa lỗi so sánh chuỗi - sử dụng giá trị tiếng Việt
+        ripe_count = sum(1 for r in results if r.get('ripeness') == 'Chín')
+        defect_count = sum(1 for r in results if r.get('defect_status') == 'Khuyết tật')
         self.update_results(f"Frame {frame_count}: {total} đối tượng, {ripe_count} chín, {defect_count} lỗi")
 
     def save_camera_frame(self, original, processed, results, frame_count: int):
