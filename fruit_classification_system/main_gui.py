@@ -68,8 +68,8 @@ class MainGUIInterface:
         self.last_image_path = None
 
         # Tuỳ chọn hiển thị/hiệu năng (sẽ tạo widget trong create_control_panel)
-        self.hide_text_var = tk.BooleanVar(value=True)     # Chỉ vẽ khung, không vẽ chữ lên video
-        self.fast_start_var = tk.BooleanVar(value=True)    # Mở nhanh: bỏ auto-calibrate khung đầu
+        self.hide_text_var = tk.BooleanVar(value=True)  # Chỉ vẽ khung, không vẽ chữ lên video
+        self.fast_start_var = tk.BooleanVar(value=True)  # Mở nhanh: bỏ auto-calibrate khung đầu
         self.display_size_var = tk.StringVar(value="960x540")  # kích thước hiển thị camera
         self._display_wh = (960, 540)
 
@@ -558,7 +558,7 @@ class MainGUIInterface:
 
             for i, image_path in enumerate(image_files):
                 try:
-                    progress = f"Xử lý {i+1}/{len(image_files)}: {os.path.basename(image_path)}"
+                    progress = f"Xử lý {i + 1}/{len(image_files)}: {os.path.basename(image_path)}"
                     self.root.after(0, lambda p=progress: self.update_status(p))
 
                     image = cv2.imread(image_path)
@@ -634,7 +634,7 @@ class MainGUIInterface:
             fruit_key = self.selected_fruit.get()
             if fruit_key not in self.fruit_configs:
                 raise Exception(f"Không tìm thấy cấu hình cho loại quả: {fruit_key}")
-                
+
             temp_config_file = f"temp_{fruit_key}_config.json"
             with open(temp_config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.fruit_configs[fruit_key], f, indent=2, ensure_ascii=False)
@@ -703,14 +703,14 @@ class MainGUIInterface:
         w, h = getattr(self, "_display_wh", (960, 540))
         cap = None
         video_writer = None
-        
+
         try:
             # Khởi tạo camera với error handling tốt hơn
             try:
                 cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
             except Exception:
                 cap = cv2.VideoCapture(camera_id)
-            
+
             if not cap.isOpened():
                 raise Exception(f"Không thể mở camera {camera_id}")
 
@@ -748,7 +748,7 @@ class MainGUIInterface:
                 try:
                     # Xử lý frame với error handling
                     vis, results, mask = self.current_system.process_frame(frame)
-                    
+
                     # Kiểm tra kết quả xử lý
                     if vis is None or mask is None:
                         self.root.after(0, lambda: self.update_status("Lỗi xử lý frame"))
@@ -761,7 +761,7 @@ class MainGUIInterface:
                 # đảm bảo kích thước hiển thị gọn
                 if vis.shape[1] != w or vis.shape[0] != h:
                     vis = cv2.resize(vis, (w, h))
-                
+
                 # Xử lý mask display
                 if mask is not None:
                     if mask.shape[1] != int(w * 0.5) or mask.shape[0] != int(h * 0.5):
@@ -792,7 +792,7 @@ class MainGUIInterface:
                     break
                 elif key == ord('s'):
                     self.save_camera_frame(frame, vis, results, frame_count)
-                    
+
         except Exception as e:
             self.root.after(0, lambda: self.update_status(f"Lỗi camera processing: {str(e)}"))
             self.root.after(0, lambda: messagebox.showerror("Lỗi Camera", f"Lỗi xử lý camera:\n{str(e)}"))
@@ -875,7 +875,7 @@ class MainGUIInterface:
             'frame_number': frame_count,
             'fruit_type': fruit_name,
             'results': results,
-            'files': { 'original': original_path, 'processed': result_path }
+            'files': {'original': original_path, 'processed': result_path}
         }
         data_path = f"camera_data_{fruit_name}_{timestamp}.json"
         with open(data_path, 'w', encoding='utf-8') as f:
@@ -913,7 +913,7 @@ class MainGUIInterface:
             "TỔNG QUAN:",
             f"- Số file xử lý: {processed_count}/{total_files}",
             f"- Tổng đối tượng: {total_objects}",
-            f"- Trung bình: {total_objects/max(1, processed_count):.1f} đối tượng/ảnh",
+            f"- Trung bình: {total_objects / max(1, processed_count):.1f} đối tượng/ảnh",
             "",
             "KÍCH THƯỚC:"
         ]
@@ -929,7 +929,7 @@ class MainGUIInterface:
             "",
             "CHẤT LƯỢNG:",
             f"- Tốt: {total_objects - defect_count} ({quality_percent:.1f}%)",
-            f"- Khuyết tật: {defect_count} ({100-quality_percent:.1f}%)"
+            f"- Khuyết tật: {defect_count} ({100 - quality_percent:.1f}%)"
         ])
 
         report_path = os.path.join(output_dir, "batch_report.txt")
@@ -1007,7 +1007,7 @@ class MainGUIInterface:
                         if line.startswith('[') and ']' in line:
                             end_idx = line.find(']')
                             time_val = line[1:end_idx]
-                            msg = line[end_idx+2:]
+                            msg = line[end_idx + 2:]
                         # escape quotes
                         msg = msg.replace('"', "'")
                         f.write(f"\"{time_val}\",\"{msg}\"\n")
