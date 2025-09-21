@@ -1256,118 +1256,214 @@ class MainGUIInterface:
             
             # Tạo cửa sổ mới với style
             db_window = tk.Toplevel(self.root)
-            db_window.title("Quản lý dữ liệu")
-            db_window.geometry("1400x800")
+            db_window.title("🗄️ Quản lý dữ liệu - Hệ thống phân loại sản phẩm")
+            db_window.geometry("1600x900")
+            db_window.configure(bg='#f8f9fa')
+            
+            # Áp dụng custom style
             CustomStyle.setup()
+            
+            # Header với tiêu đề đẹp
+            header_frame = tk.Frame(db_window, bg='#2c3e50', height=80)
+            header_frame.pack(fill=tk.X, padx=0, pady=0)
+            header_frame.pack_propagate(False)
+            
+            tk.Label(
+                header_frame,
+                text="🗄️ QUẢN LÝ DỮ LIỆU PHÂN LOẠI",
+                font=('Arial', 18, 'bold'), fg='white', bg='#2c3e50'
+            ).pack(expand=True, pady=10)
+            
+            tk.Label(
+                header_frame,
+                text="Xem và quản lý dữ liệu đã lưu trong cơ sở dữ liệu",
+                font=('Arial', 12), fg='#ecf0f1', bg='#2c3e50'
+            ).pack()
 
             # Frame chính
-            main_frame = ttk.Frame(db_window, style="Info.TFrame")
-            main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            main_frame = tk.Frame(db_window, bg='#f8f9fa')
+            main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
 
-            # Frame tìm kiếm và lọc
-            filter_frame = ttk.LabelFrame(main_frame, text="TÌM KIẾM & LỌC", padding="10")
-            filter_frame.pack(fill=tk.X, padx=5, pady=5)
+            # Frame tìm kiếm và lọc với style đẹp
+            filter_frame = tk.LabelFrame(
+                main_frame, 
+                text="🔍 TÌM KIẾM & LỌC DỮ LIỆU",
+                font=('Arial', 12, 'bold'),
+                bg='#ffffff', fg='#2c3e50',
+                relief=tk.RAISED, bd=2,
+                padx=15, pady=15
+            )
+            filter_frame.pack(fill=tk.X, pady=(0, 15))
 
-            # Grid layout cho các điều khiển lọc
-            ttk.Label(filter_frame, text="Phiên:").grid(row=0, column=0, padx=5, pady=5)
-            session_filter = ttk.Entry(filter_frame, width=30)
-            session_filter.grid(row=0, column=1, padx=5, pady=5)
+            # Grid layout cho các điều khiển lọc với spacing đẹp
+            tk.Label(filter_frame, text="🔍 Tìm kiếm phiên:", 
+                   font=('Arial', 10, 'bold'), bg='#ffffff').grid(row=0, column=0, padx=(0, 5), pady=8, sticky='w')
+            session_filter = tk.Entry(filter_frame, width=25, font=('Arial', 10), relief=tk.SUNKEN, bd=2)
+            session_filter.grid(row=0, column=1, padx=(0, 20), pady=8, sticky='w')
 
-            ttk.Label(filter_frame, text="Loại sản phẩm:").grid(row=0, column=2, padx=5, pady=5)
-            product_filter = ttk.Combobox(filter_frame, values=["Tất cả"] + [name for _, name in self.fruit_configs.items()], width=20)
+            tk.Label(filter_frame, text="🍎 Loại sản phẩm:", 
+                   font=('Arial', 10, 'bold'), bg='#ffffff').grid(row=0, column=2, padx=(0, 5), pady=8, sticky='w')
+            product_filter = ttk.Combobox(
+                filter_frame, 
+                values=["Tất cả"] + [name for _, name in self.fruit_configs.items()], 
+                width=18, font=('Arial', 10), state="readonly"
+            )
             product_filter.set("Tất cả")
-            product_filter.grid(row=0, column=3, padx=5, pady=5)
+            product_filter.grid(row=0, column=3, padx=(0, 20), pady=8, sticky='w')
 
-            ttk.Label(filter_frame, text="Thời gian:").grid(row=0, column=4, padx=5, pady=5)
-            time_filter = ttk.Combobox(filter_frame, values=["Tất cả", "Hôm nay", "7 ngày", "30 ngày"], width=15)
+            tk.Label(filter_frame, text="📅 Thời gian:", 
+                   font=('Arial', 10, 'bold'), bg='#ffffff').grid(row=0, column=4, padx=(0, 5), pady=8, sticky='w')
+            time_filter = ttk.Combobox(
+                filter_frame, 
+                values=["Tất cả", "Hôm nay", "7 ngày", "30 ngày"], 
+                width=12, font=('Arial', 10), state="readonly"
+            )
             time_filter.set("Tất cả")
-            time_filter.grid(row=0, column=5, padx=5, pady=5)
+            time_filter.grid(row=0, column=5, padx=(0, 20), pady=8, sticky='w')
 
-            # Frame chứa danh sách captures
-            captures_frame = ttk.LabelFrame(main_frame, text="DANH SÁCH PHIÊN CHỤP", padding="10")
-            captures_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            # Nút làm mới với icon
+            refresh_btn = tk.Button(
+                filter_frame, 
+                text="🔄 Làm mới", 
+                command=lambda: refresh_captures(),
+                bg='#3498db', fg='white', font=('Arial', 10, 'bold'),
+                relief=tk.RAISED, bd=2, padx=15, pady=5
+            )
+            refresh_btn.grid(row=0, column=6, padx=10, pady=8)
+
+            # Container cho 2 cột chính
+            content_container = tk.Frame(main_frame, bg='#f8f9fa')
+            content_container.pack(fill=tk.BOTH, expand=True)
+
+            # Cột trái: Danh sách captures
+            left_panel = tk.LabelFrame(
+                content_container,
+                text="📋 DANH SÁCH PHIÊN CHỤP",
+                font=('Arial', 12, 'bold'),
+                bg='#ffffff', fg='#2c3e50',
+                relief=tk.RAISED, bd=2,
+                padx=10, pady=10
+            )
+            left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
 
             # Treeview cho captures với style mới
             cap_columns = ('id', 'timestamp', 'source', 'product', 'items', 'path')
             tree_cap = ttk.Treeview(
-                captures_frame, 
+                left_panel, 
                 columns=cap_columns,
                 show='headings',
-                style="Custom.Treeview"
+                style="Custom.Treeview",
+                height=12
             )
 
-            # Định nghĩa các cột
+            # Định nghĩa các cột với width phù hợp
             headings_cap = {
-                'id': ('ID', 80),
-                'timestamp': ('Thời gian', 150),
-                'source': ('Nguồn', 200),
-                'product': ('Sản phẩm', 150),
-                'items': ('Số lượng', 100),
-                'path': ('Đường dẫn ảnh', 300)
+                'id': ('ID', 60),
+                'timestamp': ('Thời gian', 140),
+                'source': ('Nguồn', 180),
+                'product': ('Sản phẩm', 120),
+                'items': ('Số lượng', 80),
+                'path': ('Đường dẫn ảnh', 250)
             }
 
             for col, (text, width) in headings_cap.items():
                 tree_cap.heading(col, text=text, anchor=tk.CENTER)
                 tree_cap.column(col, width=width, anchor=tk.CENTER)
 
-            # Thêm scrollbar
-            scrollbar_cap = ttk.Scrollbar(captures_frame, orient=tk.VERTICAL, command=tree_cap.yview)
+            # Thêm scrollbar cho captures
+            scrollbar_cap = ttk.Scrollbar(left_panel, orient=tk.VERTICAL, command=tree_cap.yview)
             scrollbar_cap.pack(side=tk.RIGHT, fill=tk.Y)
             tree_cap.configure(yscrollcommand=scrollbar_cap.set)
             tree_cap.pack(fill=tk.BOTH, expand=True)
 
-            # Frame cho chi tiết classifications
-            detail_frame = ttk.LabelFrame(main_frame, text="CHI TIẾT PHÂN LOẠI", padding="10")
-            detail_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            # Cột phải: Chi tiết và ảnh
+            right_panel = tk.Frame(content_container, bg='#f8f9fa')
+            right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
 
-            # Treeview cho classifications với style mới
+            # Frame chi tiết classifications
+            detail_frame = tk.LabelFrame(
+                right_panel,
+                text="📊 CHI TIẾT PHÂN LOẠI",
+                font=('Arial', 12, 'bold'),
+                bg='#ffffff', fg='#2c3e50',
+                relief=tk.RAISED, bd=2,
+                padx=10, pady=10
+            )
+            detail_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+            # Treeview cho classifications
             cls_columns = ('id', 'size', 'ripeness', 'defect', 'confidence', 'timestamp')
             tree_cls = ttk.Treeview(
                 detail_frame,
                 columns=cls_columns,
                 show='headings',
-                style="Custom.Treeview"
+                style="Custom.Treeview",
+                height=8
             )
 
             # Định nghĩa các cột
             headings_cls = {
-                'id': ('ID', 80),
-                'size': ('Kích thước', 100),
-                'ripeness': ('Độ chín', 100),
-                'defect': ('Khuyết tật', 100),
-                'confidence': ('Độ tin cậy', 100),
-                'timestamp': ('Thời gian', 150)
+                'id': ('ID', 50),
+                'size': ('Kích thước', 80),
+                'ripeness': ('Độ chín', 80),
+                'defect': ('Khuyết tật', 80),
+                'confidence': ('Độ tin cậy', 90),
+                'timestamp': ('Thời gian', 120)
             }
 
             for col, (text, width) in headings_cls.items():
                 tree_cls.heading(col, text=text, anchor=tk.CENTER)
                 tree_cls.column(col, width=width, anchor=tk.CENTER)
 
-            # Thêm scrollbar
+            # Thêm scrollbar cho classifications
             scrollbar_cls = ttk.Scrollbar(detail_frame, orient=tk.VERTICAL, command=tree_cls.yview)
             scrollbar_cls.pack(side=tk.RIGHT, fill=tk.Y)
             tree_cls.configure(yscrollcommand=scrollbar_cls.set)
             tree_cls.pack(fill=tk.BOTH, expand=True)
 
             # Frame hiển thị ảnh
-            image_frame = ttk.LabelFrame(main_frame, text="XEM ẢNH", padding="10")
-            image_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            image_frame = tk.LabelFrame(
+                right_panel,
+                text="🖼️ XEM ẢNH",
+                font=('Arial', 12, 'bold'),
+                bg='#ffffff', fg='#2c3e50',
+                relief=tk.RAISED, bd=2,
+                padx=10, pady=10
+            )
+            image_frame.pack(fill=tk.BOTH, expand=True)
 
-            image_label = ttk.Label(image_frame)
-            image_label.pack(fill=tk.BOTH, expand=True)
+            # Label hiển thị ảnh với border
+            image_label = tk.Label(
+                image_frame, 
+                bg='#f8f9fa', 
+                relief=tk.SUNKEN, 
+                bd=2,
+                text="Chọn một phiên để xem ảnh",
+                font=('Arial', 10, 'italic'),
+                fg='#6c757d'
+            )
+            image_label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
             def show_image(path):
-                if not path:
+                if not path or not os.path.exists(path):
+                    image_label.config(
+                        text="❌ Không có ảnh hoặc đường dẫn không hợp lệ",
+                        image=''
+                    )
+                    image_label.image = None
                     return
                 try:
                     img = Image.open(path)
                     # Resize để vừa với frame
-                    img.thumbnail((800, 400))
+                    img.thumbnail((400, 300), Image.Resampling.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
-                    image_label.configure(image=photo)
+                    image_label.configure(image=photo, text="")
                     image_label.image = photo
-                except Exception:
-                    image_label.configure(image='')
+                except Exception as e:
+                    image_label.config(
+                        text=f"❌ Lỗi hiển thị ảnh: {str(e)}",
+                        image=''
+                    )
                     image_label.image = None
             
             def on_select_capture(event):
@@ -1386,37 +1482,40 @@ class MainGUIInterface:
                     show_image(img_path)
                 
                 # Cập nhật bảng classifications
-                rows = fetch_classifications_by_capture(self._db, cap_id)
-                
-                # Xóa dữ liệu cũ
-                for r in tree_cls.get_children():
-                    tree_cls.delete(r)
-                
-                # Thêm dữ liệu mới với màu sắc và định dạng
-                for r in rows:
-                    confidence = r.get('confidence')
-                    conf_str = f"{confidence:.2%}" if confidence is not None else 'N/A'
-                    defect = "Có" if r.get('defect_detected') else "Không"
+                try:
+                    rows = fetch_classifications_by_capture(self._db, cap_id)
                     
-                    # Thêm tags để đánh dấu màu
-                    tags = []
-                    if r.get('defect_detected'):
-                        tags.append('defect')
-                    if confidence and confidence < 0.7:
-                        tags.append('low_confidence')
+                    # Xóa dữ liệu cũ
+                    for r in tree_cls.get_children():
+                        tree_cls.delete(r)
                     
-                    tree_cls.insert(
-                        "", tk.END,
-                        values=(
-                            r.get('id'),
-                            r.get('size_label', 'N/A'),
-                            r.get('ripeness_label', 'N/A'),
-                            defect,
-                            conf_str,
-                            str(r.get('created_at'))
-                        ),
-                        tags=tags
-                    )
+                    # Thêm dữ liệu mới với màu sắc và định dạng
+                    for r in rows:
+                        confidence = r.get('confidence')
+                        conf_str = f"{confidence:.1%}" if confidence is not None else 'N/A'
+                        defect = "Có" if r.get('defect_detected') else "Không"
+                        
+                        # Thêm tags để đánh dấu màu
+                        tags = []
+                        if r.get('defect_detected'):
+                            tags.append('defect')
+                        if confidence and confidence < 0.7:
+                            tags.append('low_confidence')
+                        
+                        tree_cls.insert(
+                            "", tk.END,
+                            values=(
+                                r.get('id'),
+                                r.get('size_label', 'N/A'),
+                                r.get('ripeness_label', 'N/A'),
+                                defect,
+                                conf_str,
+                                str(r.get('created_at'))[:19] if r.get('created_at') else 'N/A'
+                            ),
+                            tags=tags
+                        )
+                except Exception as e:
+                    messagebox.showerror("Lỗi", f"Không thể tải chi tiết: {str(e)}")
             
             def refresh_captures():
                 """Cập nhật danh sách captures theo bộ lọc."""
@@ -1452,16 +1551,26 @@ class MainGUIInterface:
                         cutoff = now - timedelta(days=30)
                         rows = [r for r in rows if r.get('captured_at') >= cutoff]
                     
-                    # Thêm dữ liệu mới với định dạng
+                    # Thêm dữ liệu mới với định dạng đẹp
                     for r in rows:
+                        timestamp = str(r.get('captured_at'))[:19] if r.get('captured_at') else 'N/A'
+                        source = r.get('source') or 'N/A'
+                        product = r.get('product') or 'N/A'
+                        items = r.get('num_items') or 0
+                        path = r.get('image_path') or 'N/A'
+                        
                         tree_cap.insert("", tk.END, values=(
                             r.get('id'),
-                            str(r.get('captured_at')),
-                            r.get('source') or '',
-                            r.get('product'),
-                            r.get('num_items'),
-                            r.get('image_path') or ''
+                            timestamp,
+                            source,
+                            product,
+                            items,
+                            path
                         ))
+                    
+                    # Cập nhật status
+                    self.update_status(f"Đã tải {len(rows)} phiên chụp")
+                    
                 except Exception as e:
                     messagebox.showerror("Lỗi", f"Không thể cập nhật dữ liệu: {str(e)}")
             
@@ -1476,184 +1585,146 @@ class MainGUIInterface:
             product_filter.bind('<<ComboboxSelected>>', on_filter_change)
             time_filter.bind('<<ComboboxSelected>>', on_filter_change)
             
-            # Thêm nút làm mới
-            ttk.Button(
-                filter_frame,
-                text="Làm mới",
-                style="Primary.TButton",
-                command=refresh_captures
-            ).grid(row=0, column=6, padx=5, pady=5)
-            
             # Tải dữ liệu ban đầu
             refresh_captures()
-            
-            # Import các hàm DB cần thiết
-            from db_helper import fetch_captures_with_counts as _caplist, fetch_classifications_by_capture as _bycap
-            fetch_captures_with_counts = _caplist
-            fetch_classifications_by_capture = _bycap
-
-            viewer = tk.Toplevel(self.root)
-            viewer.title("Phiên đã lưu và kết quả")
-            viewer.geometry("1100x600")
-
-            # Top filter
-            filter_frame = tk.Frame(viewer)
-            filter_frame.pack(fill=tk.X, pady=(6, 6))
-            tk.Label(filter_frame, text="Lọc theo tên phiên:").pack(side=tk.LEFT)
-            session_filter = tk.StringVar(value="")
-            tk.Entry(filter_frame, textvariable=session_filter, width=24).pack(side=tk.LEFT, padx=(6, 10))
-            tk.Button(filter_frame, text="Tải", command=lambda: load_captures()).pack(side=tk.LEFT)
-
-            content_frame = tk.Frame(viewer)
-            content_frame.pack(fill=tk.BOTH, expand=True)
-
-            # Left: capture list
-            left_frame = tk.Frame(content_frame)
-            left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            cols_cap = ("ID", "Thời gian", "Phiên", "Sản phẩm", "Số mục", "Ảnh")
-            tree_cap = ttk.Treeview(left_frame, columns=cols_cap, show="headings")
-            for c, w in zip(cols_cap, (70, 140, 220, 120, 70, 380)):
-                tree_cap.heading(c, text=c)
-                tree_cap.column(c, width=w, anchor=tk.W)
-            tree_cap.pack(fill=tk.BOTH, expand=True)
-
-            # Right: details
-            right_frame = tk.Frame(content_frame)
-            right_frame.pack(side=tk.RIGHT, fill=tk.BOTH)
-            img_label = tk.Label(right_frame)
-            img_label.pack(pady=(4, 6))
-            cols_cls = ("ID", "Kích thước", "Độ chín", "Lỗi", "Đ.tin", "Thời gian")
-            tree_cls = ttk.Treeview(right_frame, columns=cols_cls, show="headings", height=12)
-            for c, w in zip(cols_cls, (70, 90, 100, 60, 70, 140)):
-                tree_cls.heading(c, text=c)
-                tree_cls.column(c, width=w, anchor=tk.W)
-            tree_cls.pack(fill=tk.BOTH, expand=True)
-
-            # image preview helper
-            from PIL import Image, ImageTk
-            def show_image(path: str):
-                try:
-                    if not path or not os.path.exists(path):
-                        img_label.config(text="(Không có ảnh)")
-                        return
-                    im = Image.open(path)
-                    im.thumbnail((480, 360))
-                    img = ImageTk.PhotoImage(im)
-                    img_label.configure(image=img)
-                    img_label.image = img
-                except Exception:
-                    img_label.config(text="(Không hiển thị được ảnh)")
-
-            def on_select_capture(_evt=None):
-                sel = tree_cap.selection()
-                if not sel:
-                    return
-                item = tree_cap.item(sel[0])
-                values = item['values']
-                cap_id = int(values[0])
-                img_path = values[5]
-                # load classifications
-                rows = fetch_classifications_by_capture(self._db, cap_id)
-                for r in tree_cls.get_children():
-                    tree_cls.delete(r)
-                for r in rows:
-                    tree_cls.insert("", tk.END, values=(
-                        r.get('id'), r.get('size_label'), r.get('ripeness_label'),
-                        "Có" if r.get('defect_detected') else "Không",
-                        r.get('confidence') if r.get('confidence') is not None else '',
-                        str(r.get('created_at')),
-                    ))
-                show_image(img_path)
-
-            tree_cap.bind('<<TreeviewSelect>>', on_select_capture)
-
-            def load_captures():
-                for r in tree_cap.get_children():
-                    tree_cap.delete(r)
-                rows = fetch_captures_with_counts(self._db, session_like=session_filter.get().strip(), limit=500)
-                for r in rows:
-                    tree_cap.insert("", tk.END, values=(
-                        r.get('id'), str(r.get('captured_at')), r.get('source') or '',
-                        r.get('product'), r.get('num_items'), r.get('image_path') or ''
-                    ))
-
-            load_captures()
 
         except Exception as e:
-            messagebox.showerror("DB lỗi", str(e))
+            messagebox.showerror("Lỗi DB", f"Không thể mở cửa sổ quản lý dữ liệu:\n{str(e)}")
 
     # ========================= VÒNG ĐỜI APP =========================
     def show_batch_summary_window(self):
-        """Hiển thị cửa sổ tổng hợp chi tiết xử lý hàng loạt."""
+        """Hiển thị cửa sổ tổng hợp chi tiết xử lý hàng loạt với giao diện đẹp mắt."""
         if not hasattr(self, 'batch_details'):
             return
             
-        # Tạo cửa sổ mới với style
+        # Tạo cửa sổ mới với style đẹp
         summary_window = tk.Toplevel(self.root)
-        summary_window.title(f"Kết quả xử lý hàng loạt - {self.batch_details['fruit_type']}")
-        summary_window.geometry("1200x800")
-        CustomStyle.setup()  # Áp dụng custom style
+        summary_window.title(f"📊 Kết quả xử lý hàng loạt - {self.batch_details['fruit_type'].upper()}")
+        summary_window.geometry("1400x900")
+        summary_window.configure(bg='#f8f9fa')
         
-        # Frame chính chứa tất cả các thành phần
-        main_frame = ttk.Frame(summary_window, style="Info.TFrame")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Áp dụng custom style
+        CustomStyle.setup()
         
-        # Frame chứa thông tin tổng quan
-        overview_frame = ttk.LabelFrame(
+        # Header với tiêu đề đẹp
+        header_frame = tk.Frame(summary_window, bg='#27ae60', height=80)
+        header_frame.pack(fill=tk.X, padx=0, pady=0)
+        header_frame.pack_propagate(False)
+        
+        tk.Label(
+            header_frame,
+            text="📊 KẾT QUẢ XỬ LÝ HÀNG LOẠT",
+            font=('Arial', 18, 'bold'), fg='white', bg='#27ae60'
+        ).pack(expand=True, pady=10)
+        
+        tk.Label(
+            header_frame,
+            text=f"Loại sản phẩm: {self.batch_details['fruit_type'].upper()} | Thời gian: {self.batch_details['timestamp']}",
+            font=('Arial', 12), fg='#ecf0f1', bg='#27ae60'
+        ).pack()
+        
+        # Frame chính
+        main_frame = tk.Frame(summary_window, bg='#f8f9fa')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        # Frame chứa thông tin tổng quan với style đẹp
+        overview_frame = tk.LabelFrame(
             main_frame, 
-            text="TỔNG QUAN",
-            padding="10"
+            text="📈 THỐNG KÊ TỔNG QUAN",
+            font=('Arial', 12, 'bold'),
+            bg='#ffffff', fg='#2c3e50',
+            relief=tk.RAISED, bd=2,
+            padx=15, pady=15
         )
-        overview_frame.pack(fill=tk.X, padx=5, pady=5)
+        overview_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # Grid layout cho thông tin tổng quan
-        stats = {
-            "Thời gian xử lý:": self.batch_details['timestamp'],
-            "Tổng số ảnh:": str(len(self.batch_details['images'])),
-            "Thư mục kết quả:": self.batch_details['output_dir']
-        }
+        # Tính toán thống kê
+        total_images = len(self.batch_details['images'])
+        successful_images = sum(1 for d in self.batch_details['images'].values() if len(d['results']) > 0)
+        error_images = sum(1 for d in self.batch_details['images'].values() if 'error' in d)
+        total_objects = sum(len(d['results']) for d in self.batch_details['images'].values())
+        avg_time = sum(d['process_time'] for d in self.batch_details['images'].values()) / total_images if total_images > 0 else 0
         
-        for i, (label, value) in enumerate(stats.items()):
-            ttk.Label(
+        # Grid layout cho thông tin tổng quan với icons
+        stats_data = [
+            ("📁 Tổng số ảnh:", str(total_images)),
+            ("✅ Thành công:", str(successful_images)),
+            ("❌ Lỗi:", str(error_images)),
+            ("🎯 Tổng đối tượng:", str(total_objects)),
+            ("⏱️ Thời gian TB/ảnh:", f"{avg_time:.2f}s"),
+            ("📂 Thư mục kết quả:", self.batch_details['output_dir'])
+        ]
+        
+        for i, (label, value) in enumerate(stats_data):
+            row = i // 3
+            col = (i % 3) * 2
+            
+            tk.Label(
                 overview_frame,
                 text=label,
-                font=('Arial', 10, 'bold')
-            ).grid(row=0, column=i*2, padx=5, pady=5)
+                font=('Arial', 10, 'bold'),
+                bg='#ffffff',
+                fg='#2c3e50'
+            ).grid(row=row, column=col, padx=(0, 5), pady=8, sticky='w')
             
-            ttk.Label(
+            tk.Label(
                 overview_frame,
                 text=value,
-                font=('Arial', 10)
-            ).grid(row=0, column=i*2+1, padx=5, pady=5)
+                font=('Arial', 10),
+                bg='#ffffff',
+                fg='#34495e'
+            ).grid(row=row, column=col+1, padx=(0, 20), pady=8, sticky='w')
         
         # Frame chứa bảng và công cụ
-        content_frame = ttk.LabelFrame(main_frame, text="CHI TIẾT XỬ LÝ", padding="10")
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        content_frame = tk.LabelFrame(
+            main_frame, 
+            text="📋 CHI TIẾT TỪNG ẢNH",
+            font=('Arial', 12, 'bold'),
+            bg='#ffffff', fg='#2c3e50',
+            relief=tk.RAISED, bd=2,
+            padx=10, pady=10
+        )
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
         
-        # Frame công cụ
-        tools_frame = ttk.Frame(content_frame)
-        tools_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Frame công cụ với style đẹp
+        tools_frame = tk.Frame(content_frame, bg='#ffffff')
+        tools_frame.pack(fill=tk.X, padx=5, pady=(0, 10))
         
-        # Thêm công cụ lọc và tìm kiếm
-        ttk.Label(tools_frame, text="Tìm kiếm:").pack(side=tk.LEFT, padx=5)
+        # Thêm công cụ lọc và tìm kiếm với icons
+        tk.Label(tools_frame, text="🔍 Tìm kiếm:", 
+                font=('Arial', 10, 'bold'), bg='#ffffff').pack(side=tk.LEFT, padx=(0, 5))
         search_var = tk.StringVar()
-        search_entry = ttk.Entry(tools_frame, textvariable=search_var)
-        search_entry.pack(side=tk.LEFT, padx=5)
+        search_entry = tk.Entry(tools_frame, textvariable=search_var, width=25, 
+                               font=('Arial', 10), relief=tk.SUNKEN, bd=2)
+        search_entry.pack(side=tk.LEFT, padx=(0, 20))
         
         # Thêm combobox lọc theo trạng thái
-        ttk.Label(tools_frame, text="Lọc:").pack(side=tk.LEFT, padx=5)
+        tk.Label(tools_frame, text="🔧 Lọc:", 
+                font=('Arial', 10, 'bold'), bg='#ffffff').pack(side=tk.LEFT, padx=(0, 5))
         filter_var = tk.StringVar()
         filter_combo = ttk.Combobox(
             tools_frame, 
             textvariable=filter_var,
-            values=["Tất cả", "Có lỗi", "Thành công"],
-            width=15
+            values=["Tất cả", "✅ Thành công", "⚠️ Cảnh báo", "❌ Lỗi"],
+            width=15,
+            font=('Arial', 10),
+            state="readonly"
         )
         filter_combo.set("Tất cả")
-        filter_combo.pack(side=tk.LEFT, padx=5)
+        filter_combo.pack(side=tk.LEFT, padx=(0, 20))
+        
+        # Nút làm mới
+        refresh_btn = tk.Button(
+            tools_frame,
+            text="🔄 Làm mới",
+            command=lambda: refresh_table(),
+            bg='#3498db', fg='white', font=('Arial', 10, 'bold'),
+            relief=tk.RAISED, bd=2, padx=10, pady=3
+        )
+        refresh_btn.pack(side=tk.LEFT, padx=5)
         
         # Frame chứa bảng chi tiết
-        table_frame = ttk.Frame(content_frame)
+        table_frame = tk.Frame(content_frame, bg='#ffffff')
         table_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Tạo Treeview với style mới
@@ -1662,16 +1733,17 @@ class MainGUIInterface:
             table_frame, 
             columns=columns, 
             show='headings',
-            style="Custom.Treeview"
+            style="Custom.Treeview",
+            height=15
         )
         
         # Định nghĩa các cột với heading style mới
         headings = {
-            'status': ('Trạng thái', 50),
+            'status': ('Trạng thái', 80),
             'file_name': ('Tên file', 200),
             'objects': ('Số đối tượng', 100),
-            'size': ('Kích thước', 100),
-            'process_time': ('T.gian XL (s)', 100),
+            'size': ('Kích thước ảnh', 120),
+            'process_time': ('Thời gian XL (s)', 120),
             'timestamp': ('Thời điểm', 100),
             'details': ('Chi tiết phân loại', 400)
         }
@@ -1686,103 +1758,132 @@ class MainGUIInterface:
         tree.configure(yscrollcommand=scrollbar.set)
         tree.pack(fill=tk.BOTH, expand=True)
         
-        # Thêm dữ liệu vào bảng với màu sắc và icons
-        for image_path, details in self.batch_details['images'].items():
-            results = details['results']
-            objects_count = len(results)
+        def add_data_to_table():
+            """Thêm dữ liệu vào bảng với màu sắc và icons"""
+            # Xóa dữ liệu cũ
+            for item in tree.get_children():
+                tree.delete(item)
             
-            # Xác định trạng thái và icon
-            if 'error' in details:
-                status = '❌'  # Lỗi
-            elif objects_count == 0:
-                status = '⚠️'  # Cảnh báo
-            else:
-                status = '✓'   # Thành công
-            
-            # Tạo chuỗi chi tiết với format đẹp hơn
-            if results:
-                # Thống kê nhanh
-                sizes = {}
-                ripeness = {}
-                defects = 0
+            # Thêm dữ liệu mới
+            for image_path, details in self.batch_details['images'].items():
+                results = details['results']
+                objects_count = len(results)
                 
-                for r in results:
-                    size = r.get('size_label', 'N/A')
-                    ripe = r.get('ripeness_label', 'N/A')
-                    sizes[size] = sizes.get(size, 0) + 1
-                    ripeness[ripe] = ripeness.get(ripe, 0) + 1
-                    if r.get('defect_detected', False):
-                        defects += 1
+                # Xác định trạng thái và icon
+                if 'error' in details:
+                    status = '❌ Lỗi'
+                    tags = ['error']
+                elif objects_count == 0:
+                    status = '⚠️ Cảnh báo'
+                    tags = ['warning']
+                else:
+                    status = '✅ Thành công'
+                    tags = ['success']
                 
-                # Format thông tin
-                size_str = ", ".join(f"{size}:{count}" for size, count in sizes.items())
-                ripe_str = ", ".join(f"{state}:{count}" for state, count in ripeness.items())
-                details_str = f"Kích cỡ: {size_str} | Độ chín: {ripe_str} | Khuyết tật: {defects}/{objects_count}"
-            else:
-                details_str = "Không phát hiện đối tượng"
-            
-            tree.insert('', tk.END, values=(
-                status,
-                details['base_name'],
-                objects_count,
-                details['original_size'],
-                f"{details['process_time']:.2f}",
-                details['timestamp'],
-                details_str
-            ))
+                # Tạo chuỗi chi tiết với format đẹp hơn
+                if results:
+                    # Thống kê nhanh
+                    sizes = {}
+                    ripeness = {}
+                    defects = 0
+                    
+                    for r in results:
+                        size = r.get('size', r.get('size_label', 'N/A'))
+                        ripe = r.get('ripeness', r.get('ripeness_label', 'N/A'))
+                        sizes[size] = sizes.get(size, 0) + 1
+                        ripeness[ripe] = ripeness.get(ripe, 0) + 1
+                        if r.get('defect', r.get('defect_detected', False)) == 'Defective' or r.get('defect_detected', False):
+                            defects += 1
+                    
+                    # Format thông tin
+                    size_str = ", ".join(f"{size}:{count}" for size, count in sizes.items())
+                    ripe_str = ", ".join(f"{state}:{count}" for state, count in ripeness.items())
+                    details_str = f"Kích cỡ: {size_str} | Độ chín: {ripe_str} | Khuyết tật: {defects}/{objects_count}"
+                else:
+                    details_str = "Không phát hiện đối tượng"
+                
+                tree.insert('', tk.END, values=(
+                    status,
+                    details['base_name'],
+                    objects_count,
+                    details['original_size'],
+                    f"{details['process_time']:.2f}",
+                    details['timestamp'],
+                    details_str
+                ), tags=tags)
         
-        # Frame chứa các nút điều khiển
-        control_frame = ttk.Frame(content_frame)
-        control_frame.pack(fill=tk.X, padx=5, pady=10)
+        def refresh_table():
+            """Làm mới bảng dữ liệu"""
+            add_data_to_table()
         
-        # Thêm các nút với style mới
-        ttk.Button(
-            control_frame, 
-            text="Xuất Excel", 
-            style="Primary.TButton",
-            command=lambda: self.export_batch_to_excel()
-        ).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(
-            control_frame,
-            text="Xem thống kê",
-            style="Success.TButton",
-            command=lambda: self.show_batch_statistics()
-        ).pack(side=tk.LEFT, padx=5)
-        
-        # Thêm label thống kê nhanh
-        stats_text = f"Tổng số: {len(self.batch_details['images'])} ảnh, "
-        stats_text += f"Thành công: {sum(1 for d in self.batch_details['images'].values() if len(d['results']) > 0)} ảnh"
-        ttk.Label(
-            control_frame,
-            text=stats_text,
-            font=('Arial', 10)
-        ).pack(side=tk.RIGHT, padx=5)
-        
-        # Cập nhật hàm tìm kiếm và lọc
         def filter_table(*args):
+            """Lọc bảng theo tìm kiếm và trạng thái"""
             search_text = search_var.get().lower()
             filter_value = filter_var.get()
             
+            # Xóa dữ liệu cũ
             for item in tree.get_children():
                 tree.delete(item)
-                
+            
+            # Thêm dữ liệu đã lọc
             for image_path, details in self.batch_details['images'].items():
+                # Lọc theo tìm kiếm
                 if search_text and search_text not in details['base_name'].lower():
                     continue
-                    
+                
                 results = details['results']
-                status = '✓' if results else '⚠️'
+                objects_count = len(results)
+                
+                # Xác định trạng thái
                 if 'error' in details:
-                    status = '❌'
-                    
-                if filter_value == "Có lỗi" and status != '❌':
+                    status = '❌ Lỗi'
+                    tags = ['error']
+                elif objects_count == 0:
+                    status = '⚠️ Cảnh báo'
+                    tags = ['warning']
+                else:
+                    status = '✅ Thành công'
+                    tags = ['success']
+                
+                # Lọc theo trạng thái
+                if filter_value == "✅ Thành công" and status != '✅ Thành công':
                     continue
-                if filter_value == "Thành công" and status != '✓':
+                if filter_value == "⚠️ Cảnh báo" and status != '⚠️ Cảnh báo':
                     continue
+                if filter_value == "❌ Lỗi" and status != '❌ Lỗi':
+                    continue
+                
+                # Tạo chuỗi chi tiết
+                if results:
+                    sizes = {}
+                    ripeness = {}
+                    defects = 0
                     
-                # ... (phần code thêm dữ liệu như trên)
+                    for r in results:
+                        size = r.get('size', r.get('size_label', 'N/A'))
+                        ripe = r.get('ripeness', r.get('ripeness_label', 'N/A'))
+                        sizes[size] = sizes.get(size, 0) + 1
+                        ripeness[ripe] = ripeness.get(ripe, 0) + 1
+                        if r.get('defect', r.get('defect_detected', False)) == 'Defective' or r.get('defect_detected', False):
+                            defects += 1
+                    
+                    size_str = ", ".join(f"{size}:{count}" for size, count in sizes.items())
+                    ripe_str = ", ".join(f"{state}:{count}" for state, count in ripeness.items())
+                    details_str = f"Kích cỡ: {size_str} | Độ chín: {ripe_str} | Khuyết tật: {defects}/{objects_count}"
+                else:
+                    details_str = "Không phát hiện đối tượng"
+                
+                tree.insert('', tk.END, values=(
+                    status,
+                    details['base_name'],
+                    objects_count,
+                    details['original_size'],
+                    f"{details['process_time']:.2f}",
+                    details['timestamp'],
+                    details_str
+                ), tags=tags)
         
+        # Gắn sự kiện tìm kiếm và lọc
         search_var.trace('w', filter_table)
         filter_var.trace('w', filter_table)
         
@@ -1793,44 +1894,130 @@ class MainGUIInterface:
                 return
             
             item = tree.item(selection[0])
-            file_name = item['values'][0]
+            file_name = item['values'][1]  # Tên file ở cột thứ 2
             
             # Tìm đường dẫn ảnh từ tên file
             selected_details = None
+            selected_path = None
             for image_path, details in self.batch_details['images'].items():
                 if details['base_name'] == file_name:
                     selected_details = details
+                    selected_path = image_path
                     break
                     
-            if selected_details:
-                # Hiển thị kết quả chi tiết như khi xử lý đơn lẻ
-                image = cv2.imread(image_path)
-                result_image = cv2.imread(selected_details['result_path'])
-                mask_image = cv2.imread(selected_details['mask_path'])
-                
-                # Sử dụng hàm hiển thị có sẵn
-                self.display_image_results(
-                    result_image, 
-                    mask_image, 
-                    selected_details['results'],
-                    image_path
-                )
+            if selected_details and selected_path:
+                try:
+                    # Hiển thị kết quả chi tiết như khi xử lý đơn lẻ
+                    image = cv2.imread(selected_path)
+                    result_image = cv2.imread(selected_details['result_path'])
+                    mask_image = cv2.imread(selected_details['mask_path'])
+                    
+                    if image is not None and result_image is not None and mask_image is not None:
+                        # Sử dụng hàm hiển thị có sẵn
+                        self.display_image_results(
+                            result_image, 
+                            mask_image, 
+                            selected_details['results'],
+                            selected_path
+                        )
+                    else:
+                        messagebox.showwarning("Cảnh báo", "Không thể tải ảnh để hiển thị")
+                except Exception as e:
+                    messagebox.showerror("Lỗi", f"Không thể hiển thị ảnh: {str(e)}")
         
         # Gắn sự kiện click vào dòng trong bảng
         tree.bind('<Double-1>', on_tree_select)
+        
+        # Thêm dữ liệu ban đầu
+        add_data_to_table()
+        
+        # Frame chứa các nút điều khiển
+        control_frame = tk.Frame(content_frame, bg='#ffffff')
+        control_frame.pack(fill=tk.X, padx=5, pady=(10, 0))
+        
+        # Thêm các nút với style mới
+        tk.Button(
+            control_frame, 
+            text="📊 Xuất Excel", 
+            bg='#27ae60', fg='white', font=('Arial', 10, 'bold'),
+            relief=tk.RAISED, bd=2, padx=15, pady=5,
+            command=lambda: self.export_batch_to_excel()
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            control_frame,
+            text="📈 Xem thống kê",
+            bg='#3498db', fg='white', font=('Arial', 10, 'bold'),
+            relief=tk.RAISED, bd=2, padx=15, pady=5,
+            command=lambda: self.show_batch_statistics()
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            control_frame,
+            text="🖼️ Xem ảnh gốc",
+            bg='#9b59b6', fg='white', font=('Arial', 10, 'bold'),
+            relief=tk.RAISED, bd=2, padx=15, pady=5,
+            command=lambda: self.open_result_folder()
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Thêm label thống kê nhanh
+        stats_text = f"📊 Tổng: {total_images} ảnh | ✅ Thành công: {successful_images} | ❌ Lỗi: {error_images} | 🎯 Đối tượng: {total_objects}"
+        tk.Label(
+            control_frame,
+            text=stats_text,
+            font=('Arial', 10, 'bold'),
+            bg='#ffffff',
+            fg='#2c3e50'
+        ).pack(side=tk.RIGHT, padx=5)
+
+    def open_result_folder(self):
+        """Mở thư mục kết quả trong file explorer."""
+        if not hasattr(self, 'batch_details'):
+            messagebox.showwarning("Cảnh báo", "Chưa có dữ liệu xử lý hàng loạt")
+            return
+        
+        output_dir = self.batch_details.get('output_dir')
+        if not output_dir or not os.path.exists(output_dir):
+            messagebox.showerror("Lỗi", "Thư mục kết quả không tồn tại")
+            return
+        
+        try:
+            import subprocess
+            import platform
+            
+            if platform.system() == "Windows":
+                subprocess.run(["explorer", output_dir], check=True)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(["open", output_dir], check=True)
+            else:  # Linux
+                subprocess.run(["xdg-open", output_dir], check=True)
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể mở thư mục: {str(e)}")
 
     def show_batch_statistics(self):
-        """Hiển thị cửa sổ thống kê chi tiết cho xử lý hàng loạt."""
+        """Hiển thị cửa sổ thống kê chi tiết cho xử lý hàng loạt với giao diện đẹp mắt."""
         if not hasattr(self, 'batch_details'):
             return
             
         stats_window = tk.Toplevel(self.root)
-        stats_window.title("Thống kê chi tiết")
-        stats_window.geometry("600x400")
+        stats_window.title("📈 Thống kê chi tiết - Xử lý hàng loạt")
+        stats_window.geometry("800x600")
+        stats_window.configure(bg='#f8f9fa')
+        
+        # Header với tiêu đề đẹp
+        header_frame = tk.Frame(stats_window, bg='#3498db', height=60)
+        header_frame.pack(fill=tk.X, padx=0, pady=0)
+        header_frame.pack_propagate(False)
+        
+        tk.Label(
+            header_frame,
+            text="📈 THỐNG KÊ CHI TIẾT",
+            font=('Arial', 16, 'bold'), fg='white', bg='#3498db'
+        ).pack(expand=True, pady=15)
         
         # Frame chính
-        main_frame = ttk.Frame(stats_window, style="Info.TFrame")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_frame = tk.Frame(stats_window, bg='#f8f9fa')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
         # Tính toán thống kê
         total_images = len(self.batch_details['images'])
@@ -1840,6 +2027,7 @@ class MainGUIInterface:
         defect_count = 0
         total_time = 0
         error_count = 0
+        successful_count = 0
         
         for details in self.batch_details['images'].values():
             results = details['results']
@@ -1848,71 +2036,150 @@ class MainGUIInterface:
             
             if 'error' in details:
                 error_count += 1
+            elif len(results) > 0:
+                successful_count += 1
             
             for r in results:
-                size = r.get('size_label', 'N/A')
-                ripe = r.get('ripeness_label', 'N/A')
+                size = r.get('size', r.get('size_label', 'N/A'))
+                ripe = r.get('ripeness', r.get('ripeness_label', 'N/A'))
                 size_stats[size] = size_stats.get(size, 0) + 1
                 ripeness_stats[ripe] = ripeness_stats.get(ripe, 0) + 1
-                if r.get('defect_detected', False):
+                if r.get('defect', r.get('defect_detected', False)) == 'Defective' or r.get('defect_detected', False):
                     defect_count += 1
         
-        # Hiển thị thống kê
-        stats = [
-            ("Tổng số ảnh", total_images),
-            ("Tổng số đối tượng", total_objects),
-            ("Số ảnh lỗi", error_count),
-            ("Thời gian trung bình/ảnh", f"{total_time/total_images:.2f}s"),
-            ("Số đối tượng có khuyết tật", defect_count),
-        ]
-        
-        # Frame cho thống kê cơ bản
-        basic_frame = ttk.LabelFrame(main_frame, text="THỐNG KÊ CƠ BẢN", padding="10")
+        # Frame cho thống kê cơ bản với style đẹp
+        basic_frame = tk.LabelFrame(
+            main_frame, 
+            text="📊 THỐNG KÊ CƠ BẢN",
+            font=('Arial', 12, 'bold'),
+            bg='#ffffff', fg='#2c3e50',
+            relief=tk.RAISED, bd=2,
+            padx=15, pady=15
+        )
         basic_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        for i, (label, value) in enumerate(stats):
-            ttk.Label(
+        # Hiển thị thống kê với icons
+        stats_data = [
+            ("📁 Tổng số ảnh:", str(total_images)),
+            ("✅ Thành công:", str(successful_count)),
+            ("❌ Lỗi:", str(error_count)),
+            ("🎯 Tổng đối tượng:", str(total_objects)),
+            ("⏱️ Thời gian TB/ảnh:", f"{total_time/total_images:.2f}s" if total_images > 0 else "0s"),
+            ("🔍 Đối tượng có khuyết tật:", str(defect_count)),
+            ("📈 Tỷ lệ thành công:", f"{successful_count/total_images*100:.1f}%" if total_images > 0 else "0%"),
+            ("🎯 Đối tượng/ảnh TB:", f"{total_objects/total_images:.1f}" if total_images > 0 else "0")
+        ]
+        
+        for i, (label, value) in enumerate(stats_data):
+            row = i // 2
+            col = (i % 2) * 2
+            
+            tk.Label(
                 basic_frame, 
-                text=f"{label}:",
-                font=('Arial', 10, 'bold')
-            ).grid(row=i, column=0, padx=5, pady=2, sticky='w')
-            ttk.Label(
+                text=label,
+                font=('Arial', 10, 'bold'),
+                bg='#ffffff',
+                fg='#2c3e50'
+            ).grid(row=row, column=col, padx=(0, 5), pady=8, sticky='w')
+            tk.Label(
                 basic_frame,
-                text=str(value),
-                font=('Arial', 10)
-            ).grid(row=i, column=1, padx=5, pady=2, sticky='w')
+                text=value,
+                font=('Arial', 10),
+                bg='#ffffff',
+                fg='#34495e'
+            ).grid(row=row, column=col+1, padx=(0, 20), pady=8, sticky='w')
+        
+        # Container cho 2 cột thống kê
+        stats_container = tk.Frame(main_frame, bg='#f8f9fa')
+        stats_container.pack(fill=tk.BOTH, expand=True, pady=10)
         
         # Frame cho phân phối kích thước
-        size_frame = ttk.LabelFrame(main_frame, text="PHÂN PHỐI KÍCH THƯỚC", padding="10")
-        size_frame.pack(fill=tk.X, padx=5, pady=5)
+        size_frame = tk.LabelFrame(
+            stats_container, 
+            text="📏 PHÂN PHỐI KÍCH THƯỚC",
+            font=('Arial', 12, 'bold'),
+            bg='#ffffff', fg='#2c3e50',
+            relief=tk.RAISED, bd=2,
+            padx=15, pady=15
+        )
+        size_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
         
-        for i, (size, count) in enumerate(sorted(size_stats.items())):
-            ttk.Label(
+        if size_stats:
+            for i, (size, count) in enumerate(sorted(size_stats.items())):
+                percent = count/total_objects*100 if total_objects > 0 else 0
+                tk.Label(
+                    size_frame,
+                    text=f"📐 {size}:",
+                    font=('Arial', 10, 'bold'),
+                    bg='#ffffff',
+                    fg='#2c3e50'
+                ).grid(row=i, column=0, padx=5, pady=5, sticky='w')
+                tk.Label(
+                    size_frame,
+                    text=f"{count} ({percent:.1f}%)",
+                    font=('Arial', 10),
+                    bg='#ffffff',
+                    fg='#34495e'
+                ).grid(row=i, column=1, padx=5, pady=5, sticky='w')
+        else:
+            tk.Label(
                 size_frame,
-                text=f"{size}:",
-                font=('Arial', 10, 'bold')
-            ).grid(row=i, column=0, padx=5, pady=2, sticky='w')
-            ttk.Label(
-                size_frame,
-                text=f"{count} ({count/total_objects*100:.1f}%)",
-                font=('Arial', 10)
-            ).grid(row=i, column=1, padx=5, pady=2, sticky='w')
+                text="Không có dữ liệu",
+                font=('Arial', 10, 'italic'),
+                bg='#ffffff',
+                fg='#6c757d'
+            ).pack(pady=20)
         
         # Frame cho phân phối độ chín
-        ripe_frame = ttk.LabelFrame(main_frame, text="PHÂN PHỐI ĐỘ CHÍN", padding="10")
-        ripe_frame.pack(fill=tk.X, padx=5, pady=5)
+        ripe_frame = tk.LabelFrame(
+            stats_container, 
+            text="🍎 PHÂN PHỐI ĐỘ CHÍN",
+            font=('Arial', 12, 'bold'),
+            bg='#ffffff', fg='#2c3e50',
+            relief=tk.RAISED, bd=2,
+            padx=15, pady=15
+        )
+        ripe_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
         
-        for i, (ripe, count) in enumerate(sorted(ripeness_stats.items())):
-            ttk.Label(
+        if ripeness_stats:
+            for i, (ripe, count) in enumerate(sorted(ripeness_stats.items())):
+                percent = count/total_objects*100 if total_objects > 0 else 0
+                # Chọn icon phù hợp
+                icon = "🟢" if "Xanh" in ripe or "Green" in ripe else "🔴" if "Chín" in ripe or "Ripe" in ripe else "🟡"
+                tk.Label(
+                    ripe_frame,
+                    text=f"{icon} {ripe}:",
+                    font=('Arial', 10, 'bold'),
+                    bg='#ffffff',
+                    fg='#2c3e50'
+                ).grid(row=i, column=0, padx=5, pady=5, sticky='w')
+                tk.Label(
+                    ripe_frame,
+                    text=f"{count} ({percent:.1f}%)",
+                    font=('Arial', 10),
+                    bg='#ffffff',
+                    fg='#34495e'
+                ).grid(row=i, column=1, padx=5, pady=5, sticky='w')
+        else:
+            tk.Label(
                 ripe_frame,
-                text=f"{ripe}:",
-                font=('Arial', 10, 'bold')
-            ).grid(row=i, column=0, padx=5, pady=2, sticky='w')
-            ttk.Label(
-                ripe_frame,
-                text=f"{count} ({count/total_objects*100:.1f}%)",
-                font=('Arial', 10)
-            ).grid(row=i, column=1, padx=5, pady=2, sticky='w')
+                text="Không có dữ liệu",
+                font=('Arial', 10, 'italic'),
+                bg='#ffffff',
+                fg='#6c757d'
+            ).pack(pady=20)
+        
+        # Frame chứa nút đóng
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        tk.Button(
+            button_frame,
+            text="❌ Đóng",
+            command=stats_window.destroy,
+            bg='#e74c3c', fg='white', font=('Arial', 10, 'bold'),
+            relief=tk.RAISED, bd=2, padx=20, pady=5
+        ).pack(side=tk.RIGHT, padx=5)
 
     def export_batch_to_excel(self):
         """Xuất kết quả xử lý hàng loạt ra file Excel."""
